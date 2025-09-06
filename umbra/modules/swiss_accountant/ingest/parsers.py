@@ -2,14 +2,11 @@
 Document Parsers for Swiss Accountant
 Detectors and parsers for various document types (receipt, invoice, qr_bill, payslip, etc.)
 """
-import re
-import json
-from typing import Dict, List, Optional, Tuple, Any
-from decimal import Decimal
-from datetime import datetime, date
-from enum import Enum
-from pathlib import Path
 import logging
+import re
+from datetime import date
+from enum import Enum
+from typing import Any
 
 
 class DocumentType(Enum):
@@ -27,11 +24,11 @@ class DocumentType(Enum):
 
 class DocumentParser:
     """Main document parser with type detection and field extraction."""
-    
+
     def __init__(self):
         """Initialize document parser."""
         self.logger = logging.getLogger(__name__)
-        
+
         # Document type detection patterns
         self.type_patterns = {
             DocumentType.RECEIPT: [
@@ -76,7 +73,7 @@ class DocumentParser:
                 r'(?i)(card statement|credit card)'
             ]
         }
-        
+
         # Common field extraction patterns
         self.field_patterns = {
             'amounts': [
@@ -121,8 +118,8 @@ class DocumentParser:
                 r'(?i)(?:beleg|ticket)[:\s]*([A-Z0-9\-]{3,20})'
             ]
         }
-    
-    def detect_document_type(self, ocr_text: str, filename: str = "") -> Dict[str, Any]:
+
+    def detect_document_type(self, ocr_text: str, filename: str = "") -> dict[str, Any]:
         """Detect document type from OCR text and filename.
         
         Args:
@@ -136,29 +133,29 @@ class DocumentParser:
             scores = {}
             text_lower = ocr_text.lower()
             filename_lower = filename.lower()
-            
+
             # Score each document type based on pattern matches
             for doc_type, patterns in self.type_patterns.items():
                 score = 0
                 matches = []
-                
+
                 for pattern in patterns:
                     # Check OCR text
                     text_matches = re.findall(pattern, ocr_text, re.IGNORECASE | re.MULTILINE)
                     if text_matches:
                         score += len(text_matches) * 10
                         matches.extend(text_matches)
-                    
+
                     # Check filename if provided
                     if filename and re.search(pattern, filename, re.IGNORECASE):
                         score += 5
                         matches.append(f"filename:{pattern}")
-                
+
                 scores[doc_type] = {
                     'score': score,
                     'matches': matches
                 }
-            
+
             # Find best match
             if not scores or all(s['score'] == 0 for s in scores.values()):
                 return {
@@ -167,19 +164,19 @@ class DocumentParser:
                     'scores': scores,
                     'reason': 'No clear pattern matches found'
                 }
-            
+
             best_type = max(scores.keys(), key=lambda k: scores[k]['score'])
             best_score = scores[best_type]['score']
             max_possible_score = len(self.type_patterns[best_type]) * 10
             confidence = min(best_score / max_possible_score, 1.0)
-            
+
             return {
                 'document_type': best_type,
                 'confidence': confidence,
                 'scores': scores,
                 'matches': scores[best_type]['matches']
             }
-            
+
         except Exception as e:
             self.logger.error(f"Document type detection failed: {e}")
             return {
@@ -187,8 +184,8 @@ class DocumentParser:
                 'confidence': 0.0,
                 'error': str(e)
             }
-    
-    def extract_common_fields(self, ocr_text: str) -> Dict[str, Any]:
+
+    def extract_common_fields(self, ocr_text: str) -> dict[str, Any]:
         """Extract common fields from OCR text.
         
         Args:
@@ -207,9 +204,9 @@ class DocumentParser:
                 'vat_rates': [],
                 'references': []
             }
-            
+
             lines = ocr_text.split('\n')
-            
+
             # Extract amounts
             for pattern in self.field_patterns['amounts']:
                 matches = re.findall(pattern, ocr_text, re.IGNORECASE)
@@ -219,11 +216,11 @@ class DocumentParser:
                             amount_str = match[0] if match[0] else match[1]
                         else:
                             amount_str = match
-                        
+
                         # Clean and convert amount
                         amount_str = amount_str.replace(',', '.')
                         amount = float(amount_str)
-                        
+
                         if 0.01 <= amount <= 999999:  # Reasonable range
                             fields['amounts'].append({
                                 'value': amount,
@@ -232,7 +229,7 @@ class DocumentParser:
                             })
                     except (ValueError, TypeError):
                         continue
-            
+
             # Extract dates
             for pattern in self.field_patterns['dates']:
                 matches = re.findall(pattern, ocr_text, re.IGNORECASE)
@@ -245,7 +242,7 @@ class DocumentParser:
                                 day, month, year = map(int, match)
                                 if year < 100:  # 2-digit year
                                     year = 2000 + year if year < 50 else 1900 + year
-                            
+
                             if 1 <= day <= 31 and 1 <= month <= 12 and 1990 <= year <= 2030:
                                 date_obj = date(year, month, day)
                                 fields['dates'].append({
@@ -255,7 +252,7 @@ class DocumentParser:
                                 })
                     except (ValueError, TypeError):
                         continue
-            
+
             # Extract merchant names (first few meaningful lines)
             meaningful_lines = [line.strip() for line in lines[:5] if line.strip() and len(line.strip()) > 2]
             for i, line in enumerate(meaningful_lines):
@@ -267,7 +264,7 @@ class DocumentParser:
                             'confidence': confidence,
                             'line_number': i
                         })
-            
+
             # Extract payment methods
             for pattern in self.field_patterns['payment_methods']:
                 matches = re.findall(pattern, ocr_text, re.IGNORECASE)
@@ -277,7 +274,7 @@ class DocumentParser:
                         'text': match,
                         'confidence': 0.8
                     })
-            
+
             # Extract VAT rates
             for pattern in self.field_patterns['vat_info']:
                 matches = re.findall(pattern, ocr_text, re.IGNORECASE)
@@ -285,7 +282,7 @@ class DocumentParser:
                     try:
                         rate_str = match.replace(',', '.')
                         rate = float(rate_str)
-                        
+
                         # Check if it's a valid Swiss VAT rate
                         if rate in [8.1, 2.6, 3.8, 0.0, 7.7]:  # Including old rate
                             fields['vat_rates'].append({
@@ -295,7 +292,7 @@ class DocumentParser:
                             })
                     except (ValueError, TypeError):
                         continue
-            
+
             # Extract references
             for pattern in self.field_patterns['references']:
                 matches = re.findall(pattern, ocr_text, re.IGNORECASE)
@@ -304,13 +301,13 @@ class DocumentParser:
                         ref = match[1] if len(match) > 1 else match[0]
                     else:
                         ref = match
-                    
+
                     fields['references'].append({
                         'reference': ref,
                         'text': match,
                         'confidence': 0.7
                     })
-            
+
             # Remove duplicates and sort by confidence
             for field_type in fields:
                 if field_type in ['amounts', 'dates', 'merchants', 'payment_methods', 'vat_rates', 'references']:
@@ -322,14 +319,14 @@ class DocumentParser:
                         if key not in seen:
                             seen.add(key)
                             unique_items.append(item)
-                    
+
                     # Sort by confidence (descending)
-                    fields[field_type] = sorted(unique_items, 
-                                              key=lambda x: x.get('confidence', 0), 
+                    fields[field_type] = sorted(unique_items,
+                                              key=lambda x: x.get('confidence', 0),
                                               reverse=True)
-            
+
             return fields
-            
+
         except Exception as e:
             self.logger.error(f"Field extraction failed: {e}")
             return {
@@ -342,8 +339,8 @@ class DocumentParser:
                 'references': [],
                 'error': str(e)
             }
-    
-    def parse_receipt(self, ocr_text: str) -> Dict[str, Any]:
+
+    def parse_receipt(self, ocr_text: str) -> dict[str, Any]:
         """Parse receipt-specific fields.
         
         Args:
@@ -354,7 +351,7 @@ class DocumentParser:
         """
         try:
             common_fields = self.extract_common_fields(ocr_text)
-            
+
             # Receipt-specific parsing
             receipt_data = {
                 'document_type': 'receipt',
@@ -367,14 +364,14 @@ class DocumentParser:
                 'line_items': self._extract_line_items(ocr_text),
                 'confidence': self._calculate_confidence(common_fields)
             }
-            
+
             return receipt_data
-            
+
         except Exception as e:
             self.logger.error(f"Receipt parsing failed: {e}")
             return {'error': str(e), 'document_type': 'receipt'}
-    
-    def parse_invoice(self, ocr_text: str) -> Dict[str, Any]:
+
+    def parse_invoice(self, ocr_text: str) -> dict[str, Any]:
         """Parse invoice-specific fields.
         
         Args:
@@ -385,7 +382,7 @@ class DocumentParser:
         """
         try:
             common_fields = self.extract_common_fields(ocr_text)
-            
+
             # Invoice-specific patterns
             invoice_patterns = {
                 'invoice_number': [
@@ -400,30 +397,30 @@ class DocumentParser:
                     r'(?i)(?:kunden|customer|client)[_\-\s]*(?:nr|no|n°|number)[:\s]*([A-Z0-9\-]{3,20})'
                 ]
             }
-            
+
             # Extract invoice-specific fields
             invoice_number = None
             due_date = None
             customer_number = None
-            
+
             for pattern in invoice_patterns['invoice_number']:
                 match = re.search(pattern, ocr_text, re.IGNORECASE)
                 if match:
                     invoice_number = match.group(1)
                     break
-            
+
             for pattern in invoice_patterns['due_date']:
                 match = re.search(pattern, ocr_text, re.IGNORECASE)
                 if match:
                     due_date = match.group(1)
                     break
-            
+
             for pattern in invoice_patterns['customer_number']:
                 match = re.search(pattern, ocr_text, re.IGNORECASE)
                 if match:
                     customer_number = match.group(1)
                     break
-            
+
             invoice_data = {
                 'document_type': 'invoice',
                 'invoice_number': invoice_number,
@@ -436,14 +433,14 @@ class DocumentParser:
                 'line_items': self._extract_line_items(ocr_text),
                 'confidence': self._calculate_confidence(common_fields)
             }
-            
+
             return invoice_data
-            
+
         except Exception as e:
             self.logger.error(f"Invoice parsing failed: {e}")
             return {'error': str(e), 'document_type': 'invoice'}
-    
-    def parse_payslip(self, ocr_text: str) -> Dict[str, Any]:
+
+    def parse_payslip(self, ocr_text: str) -> dict[str, Any]:
         """Parse payslip-specific fields.
         
         Args:
@@ -454,7 +451,7 @@ class DocumentParser:
         """
         try:
             common_fields = self.extract_common_fields(ocr_text)
-            
+
             # Payslip-specific patterns
             payslip_patterns = {
                 'gross_salary': [
@@ -476,7 +473,7 @@ class DocumentParser:
                     r'(?i)(?:monat|mois|month)[:\s]*(\d{1,2}[./]\d{4})'
                 ]
             }
-            
+
             # Extract payslip fields
             extracted = {}
             for field, patterns in payslip_patterns.items():
@@ -492,7 +489,7 @@ class DocumentParser:
                         else:
                             extracted[field] = match.group(1)
                         break
-            
+
             payslip_data = {
                 'document_type': 'payslip',
                 'employer': common_fields['merchants'][0]['name'] if common_fields['merchants'] else None,
@@ -504,35 +501,35 @@ class DocumentParser:
                 'social_contributions': self._extract_social_contributions(ocr_text),
                 'confidence': self._calculate_confidence(common_fields)
             }
-            
+
             return payslip_data
-            
+
         except Exception as e:
             self.logger.error(f"Payslip parsing failed: {e}")
             return {'error': str(e), 'document_type': 'payslip'}
-    
-    def _extract_line_items(self, ocr_text: str) -> List[Dict[str, Any]]:
+
+    def _extract_line_items(self, ocr_text: str) -> list[dict[str, Any]]:
         """Extract line items from receipt/invoice."""
         try:
             lines = ocr_text.split('\n')
             line_items = []
-            
+
             # Look for lines with amount patterns
             for line in lines:
                 line = line.strip()
                 if len(line) < 3:
                     continue
-                
+
                 # Try to find amount at end of line
                 amount_match = re.search(r'([0-9]{1,6}[.,]\d{2})\s*(?:chf|fr\.?|eur|€)?\s*$', line, re.IGNORECASE)
                 if amount_match:
                     try:
                         amount_str = amount_match.group(1).replace(',', '.')
                         amount = float(amount_str)
-                        
+
                         # Extract description (everything before the amount)
                         description = line[:amount_match.start()].strip()
-                        
+
                         if description and 0.01 <= amount <= 9999:
                             line_items.append({
                                 'description': description,
@@ -541,14 +538,14 @@ class DocumentParser:
                             })
                     except (ValueError, TypeError):
                         continue
-            
+
             return line_items[:20]  # Limit to reasonable number
-            
+
         except Exception as e:
             self.logger.error(f"Line item extraction failed: {e}")
             return []
-    
-    def _extract_vat_breakdown(self, ocr_text: str) -> Dict[str, Any]:
+
+    def _extract_vat_breakdown(self, ocr_text: str) -> dict[str, Any]:
         """Extract VAT breakdown from text."""
         try:
             vat_breakdown = {
@@ -556,30 +553,30 @@ class DocumentParser:
                 'total_vat': None,
                 'net_amount': None
             }
-            
+
             # Look for VAT breakdown patterns
             vat_patterns = [
                 r'(?i)(?:mwst|tva|iva)\s*([0-9.,]+)\s*%[:\s]*(?:chf|fr\.?)?\s*([0-9]{1,6}[.,]\d{2})',
                 r'([0-9.,]+)\s*%\s*(?:mwst|tva|iva)[:\s]*(?:chf|fr\.?)?\s*([0-9]{1,6}[.,]\d{2})'
             ]
-            
+
             for pattern in vat_patterns:
                 matches = re.findall(pattern, ocr_text, re.IGNORECASE)
                 for match in matches:
                     try:
                         rate_str = match[0].replace(',', '.')
                         amount_str = match[1].replace(',', '.')
-                        
+
                         rate = float(rate_str)
                         amount = float(amount_str)
-                        
+
                         vat_breakdown['rates'].append({
                             'rate': rate,
                             'amount': amount
                         })
                     except (ValueError, TypeError):
                         continue
-            
+
             # Look for total VAT
             total_vat_pattern = r'(?i)(?:total.*mwst|mwst.*total|total.*tva)[:\s]*(?:chf|fr\.?)?\s*([0-9]{1,6}[.,]\d{2})'
             total_match = re.search(total_vat_pattern, ocr_text, re.IGNORECASE)
@@ -588,18 +585,18 @@ class DocumentParser:
                     vat_breakdown['total_vat'] = float(total_match.group(1).replace(',', '.'))
                 except (ValueError, TypeError):
                     pass
-            
+
             return vat_breakdown
-            
+
         except Exception as e:
             self.logger.error(f"VAT breakdown extraction failed: {e}")
             return {'rates': [], 'total_vat': None, 'net_amount': None}
-    
-    def _extract_social_contributions(self, ocr_text: str) -> Dict[str, Any]:
+
+    def _extract_social_contributions(self, ocr_text: str) -> dict[str, Any]:
         """Extract social insurance contributions from payslip."""
         try:
             contributions = {}
-            
+
             # Swiss social insurance patterns
             patterns = {
                 'ahv_iv_eo': r'(?i)(?:ahv|avs)[:\s]*(?:chf|fr\.?)?\s*([0-9]{1,6}[.,]\d{2})',
@@ -608,7 +605,7 @@ class DocumentParser:
                 'uvg': r'(?i)(?:uvg|nbu)[:\s]*(?:chf|fr\.?)?\s*([0-9]{1,6}[.,]\d{2})',
                 'ktg': r'(?i)(?:ktg|ijm)[:\s]*(?:chf|fr\.?)?\s*([0-9]{1,6}[.,]\d{2})'
             }
-            
+
             for contrib_type, pattern in patterns.items():
                 match = re.search(pattern, ocr_text, re.IGNORECASE)
                 if match:
@@ -617,19 +614,19 @@ class DocumentParser:
                         contributions[contrib_type] = float(amount_str)
                     except (ValueError, TypeError):
                         continue
-            
+
             return contributions
-            
+
         except Exception as e:
             self.logger.error(f"Social contributions extraction failed: {e}")
             return {}
-    
-    def _calculate_confidence(self, common_fields: Dict[str, Any]) -> float:
+
+    def _calculate_confidence(self, common_fields: dict[str, Any]) -> float:
         """Calculate overall confidence score for parsed document."""
         try:
             score = 0.0
             max_score = 0.0
-            
+
             # Weight different fields
             field_weights = {
                 'amounts': 0.3,
@@ -639,15 +636,15 @@ class DocumentParser:
                 'vat_rates': 0.1,
                 'references': 0.1
             }
-            
+
             for field, weight in field_weights.items():
                 max_score += weight
                 if common_fields.get(field):
                     field_confidence = sum(item.get('confidence', 0) for item in common_fields[field]) / len(common_fields[field])
                     score += field_confidence * weight
-            
+
             return min(score / max_score if max_score > 0 else 0, 1.0)
-            
+
         except Exception as e:
             self.logger.error(f"Confidence calculation failed: {e}")
             return 0.0

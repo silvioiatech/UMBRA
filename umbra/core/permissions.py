@@ -2,19 +2,18 @@
 Permission management for Umbra bot with structured logging.
 Manages user permissions and access control with audit logging.
 """
-import logging
-from typing import List, Set
 from .config import config
 from .logger import get_context_logger, log_user_action
 
+
 class PermissionManager:
     """Manages user permissions and access control with comprehensive logging."""
-    
+
     def __init__(self):
         self.logger = get_context_logger(__name__)
-        self.allowed_users: Set[int] = set(config.ALLOWED_USER_IDS)
-        self.admin_users: Set[int] = set(config.ALLOWED_ADMIN_IDS)
-        
+        self.allowed_users: set[int] = set(config.ALLOWED_USER_IDS)
+        self.admin_users: set[int] = set(config.ALLOWED_ADMIN_IDS)
+
         self.logger.info(
             "Permission manager initialized",
             extra={
@@ -24,19 +23,19 @@ class PermissionManager:
                 "action": "init"
             }
         )
-    
+
     def is_allowed(self, user_id: int) -> bool:
         """Check if user is allowed to use the bot (legacy method name)."""
         return self.is_user_allowed(user_id)
-    
+
     def is_admin(self, user_id: int) -> bool:
         """Check if user has admin privileges (legacy method name)."""
         return self.is_user_admin(user_id)
-    
+
     def is_user_allowed(self, user_id: int) -> bool:
         """Check if user is allowed to use the bot."""
         allowed = user_id in self.allowed_users
-        
+
         if not allowed:
             self.logger.warning(
                 "Unauthorized access attempt",
@@ -47,13 +46,13 @@ class PermissionManager:
                     "result": "denied"
                 }
             )
-        
+
         return allowed
-    
+
     def is_user_admin(self, user_id: int) -> bool:
         """Check if user has admin privileges."""
         is_admin = user_id in self.admin_users
-        
+
         self.logger.debug(
             "Admin privilege check",
             extra={
@@ -63,9 +62,9 @@ class PermissionManager:
                 "result": "granted" if is_admin else "denied"
             }
         )
-        
+
         return is_admin
-    
+
     def add_allowed_user(self, user_id: int, admin_user_id: int) -> bool:
         """Add user to allowed list (admin only)."""
         if not self.is_user_admin(admin_user_id):
@@ -80,10 +79,10 @@ class PermissionManager:
                 }
             )
             return False
-        
+
         if user_id not in self.allowed_users:
             self.allowed_users.add(user_id)
-            
+
             log_user_action(
                 self.logger.logger,
                 admin_user_id,
@@ -92,11 +91,11 @@ class PermissionManager:
                 True,
                 {"target_user_id": user_id}
             )
-            
+
             return True
-        
+
         return False
-    
+
     def remove_allowed_user(self, user_id: int, admin_user_id: int) -> bool:
         """Remove user from allowed list (admin only, cannot remove other admins)."""
         if not self.is_user_admin(admin_user_id):
@@ -111,7 +110,7 @@ class PermissionManager:
                 }
             )
             return False
-        
+
         # Prevent removal of admin users
         if user_id in self.admin_users:
             self.logger.warning(
@@ -126,10 +125,10 @@ class PermissionManager:
                 }
             )
             return False
-        
+
         if user_id in self.allowed_users:
             self.allowed_users.remove(user_id)
-            
+
             log_user_action(
                 self.logger.logger,
                 admin_user_id,
@@ -138,19 +137,19 @@ class PermissionManager:
                 True,
                 {"target_user_id": user_id}
             )
-            
+
             return True
-        
+
         return False
-    
-    def get_allowed_users(self) -> List[int]:
+
+    def get_allowed_users(self) -> list[int]:
         """Get list of allowed users."""
         return list(self.allowed_users)
-    
-    def get_admin_users(self) -> List[int]:
+
+    def get_admin_users(self) -> list[int]:
         """Get list of admin users."""
         return list(self.admin_users)
-    
+
     def get_user_role(self, user_id: int) -> str:
         """Get user role as string."""
         if user_id in self.admin_users:
@@ -159,20 +158,20 @@ class PermissionManager:
             return "user"
         else:
             return "unauthorized"
-    
+
     def check_module_permission(self, user_id: int, module: str, action: str) -> bool:
         """Check if user has permission for specific module action."""
-        
+
         # First check if user is allowed at all
         if not self.is_user_allowed(user_id):
             return False
-        
+
         # Define admin-only modules and actions
         admin_only_modules = {'concierge', 'business', 'security'}
         admin_only_actions = {'exec', 'delete', 'modify_system', 'create_instance'}
-        
+
         is_admin = self.is_user_admin(user_id)
-        
+
         # Check module-level permissions
         if module in admin_only_modules and not is_admin:
             self.logger.warning(
@@ -186,7 +185,7 @@ class PermissionManager:
                 }
             )
             return False
-        
+
         # Check action-level permissions
         if action in admin_only_actions and not is_admin:
             self.logger.warning(
@@ -200,9 +199,9 @@ class PermissionManager:
                 }
             )
             return False
-        
+
         return True
-    
+
     def get_status_summary(self) -> dict:
         """Get permission status summary."""
         return {

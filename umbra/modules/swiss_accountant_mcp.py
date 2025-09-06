@@ -3,30 +3,26 @@ Swiss Accountant v1.5 - File-first Swiss tax/VAT assistant
 Privacy-first, file-first Swiss personal/business tax helper with OCR, QR-bills, reconciliation, and reports.
 """
 import os
-import json
-import hashlib
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
-from decimal import Decimal
-from pathlib import Path
+from datetime import UTC, datetime
+from typing import Any
 
 from ..core.config import get_config
 from ..storage.database import get_database
 from ..utils.logger import get_logger
+from .swiss_accountant.ai.helpers import AIHelpers
+from .swiss_accountant.exports.csv_excel import ExportManager
+from .swiss_accountant.exports.evidence_pack import EvidencePackGenerator
 
 # Swiss Accountant components
 from .swiss_accountant.ingest.ocr import OCRPipeline
 from .swiss_accountant.ingest.parsers import DocumentParser
 from .swiss_accountant.ingest.qr_bill import QRBillParser
 from .swiss_accountant.ingest.statements import StatementParser
-from .swiss_accountant.normalize.merchants import MerchantNormalizer
 from .swiss_accountant.normalize.categories import CategoryMapper
+from .swiss_accountant.normalize.merchants import MerchantNormalizer
 from .swiss_accountant.reconcile.matcher import ExpenseTransactionMatcher
-from .swiss_accountant.rules.vat_engine import VATEngine
 from .swiss_accountant.rules.tax_profiles import TaxProfileManager
-from .swiss_accountant.exports.csv_excel import ExportManager
-from .swiss_accountant.exports.evidence_pack import EvidencePackGenerator
-from .swiss_accountant.ai.helpers import AIHelpers
+from .swiss_accountant.rules.vat_engine import VATEngine
 
 
 class SwissAccountantMCP:
@@ -37,7 +33,7 @@ class SwissAccountantMCP:
         self.config = get_config()
         self.db = get_database()
         self.logger = get_logger(__name__)
-        
+
         # Configuration
         self.locale_tz = os.getenv('LOCALE_TZ', 'Europe/Zurich')
         self.ai_policy = os.getenv('AI_POLICY', 'sparring')  # sparring|always|never
@@ -49,7 +45,7 @@ class SwissAccountantMCP:
         self.allowed_doc_types = os.getenv('ALLOWED_DOC_TYPES', 'pdf,jpg,jpeg,png,xml,csv,xlsx').split(',')
         self.export_password_required = os.getenv('EXPORT_PASSWORD_REQUIRED', 'false').lower() == 'true'
         self.privacy_mode = os.getenv('PRIVACY_MODE', 'strict')
-        
+
         # Initialize components
         self.ocr_pipeline = OCRPipeline(self.ocr_engine, self.ocr_langs)
         self.document_parser = DocumentParser()
@@ -63,11 +59,11 @@ class SwissAccountantMCP:
         self.export_manager = ExportManager()
         self.evidence_pack_generator = EvidencePackGenerator()
         self.ai_helpers = AIHelpers(self.ai_policy, self.privacy_mode)
-        
+
         # Initialize database
         self._init_database()
 
-    def get_capabilities(self) -> Dict[str, Any]:
+    def get_capabilities(self) -> dict[str, Any]:
         """Get module capabilities."""
         return {
             "name": "swiss_accountant",
@@ -75,7 +71,7 @@ class SwissAccountantMCP:
             "description": "File-first Swiss tax/VAT assistant",
             "actions": [
                 "ingest_document",
-                "infer_document", 
+                "infer_document",
                 "import_statement",
                 "parse_qr_bill",
                 "add_expense",
@@ -107,11 +103,11 @@ class SwissAccountantMCP:
             }
         }
 
-    async def execute(self, action: str, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute(self, action: str, params: dict[str, Any]) -> dict[str, Any]:
         """Execute an action."""
         try:
             user_id = params.get('user_id', 'system')
-            
+
             # Map actions to methods
             action_map = {
                 'ingest_document': self._ingest_document,
@@ -151,7 +147,7 @@ class SwissAccountantMCP:
                 'success': True,
                 'action': action,
                 'result': result,
-                'timestamp': datetime.now(timezone.utc).isoformat()
+                'timestamp': datetime.now(UTC).isoformat()
             }
 
         except Exception as e:
@@ -160,7 +156,7 @@ class SwissAccountantMCP:
                 'success': False,
                 'action': action,
                 'error': str(e),
-                'timestamp': datetime.now(timezone.utc).isoformat()
+                'timestamp': datetime.now(UTC).isoformat()
             }
 
     def _init_database(self):
@@ -375,7 +371,7 @@ class SwissAccountantMCP:
             self.db.execute("CREATE INDEX IF NOT EXISTS idx_sa_expenses_category ON sa_expenses (category_code)")
             self.db.execute("CREATE INDEX IF NOT EXISTS idx_sa_transactions_amount_date ON sa_transactions (amount_cents, value_date)")
             self.db.execute("CREATE INDEX IF NOT EXISTS idx_sa_transactions_reference ON sa_transactions (reference)")
-            
+
             # Create FTS index for document search
             self.db.execute("""
                 CREATE VIRTUAL TABLE IF NOT EXISTS sa_documents_fts USING fts5(
@@ -387,7 +383,7 @@ class SwissAccountantMCP:
 
             # Insert default Swiss VAT rates
             self._insert_default_vat_rates()
-            
+
             # Insert default Swiss tax categories
             self._insert_default_tax_categories()
 
@@ -403,23 +399,23 @@ class SwissAccountantMCP:
             # Current Swiss VAT rates (as of 2024)
             vat_rates = [
                 ('standard', 8.1, '2024-01-01'),
-                ('reduced', 2.6, '2024-01-01'), 
+                ('reduced', 2.6, '2024-01-01'),
                 ('special', 3.8, '2024-01-01'),  # Hotels, accommodation
                 ('zero', 0.0, '2024-01-01')
             ]
-            
+
             for rate_type, rate, effective_from in vat_rates:
                 existing = self.db.query_one(
                     "SELECT id FROM sa_vat_rates WHERE rate_type = ? AND effective_from = ?",
                     (rate_type, effective_from)
                 )
-                
+
                 if not existing:
                     self.db.execute(
                         "INSERT INTO sa_vat_rates (rate_type, rate, effective_from, source_url) VALUES (?, ?, ?, ?)",
                         (rate_type, rate, effective_from, 'https://www.estv.admin.ch/estv/de/home/mehrwertsteuer/dienstleistungsunternehmen/abrechnung/steuersaetze.html')
                     )
-                    
+
         except Exception as e:
             self.logger.warning(f"Failed to insert default VAT rates: {e}")
 
@@ -439,112 +435,112 @@ class SwissAccountantMCP:
                 ('home_office', 'Homeoffice'),
                 ('other_deductions', 'Weitere Abzüge')
             ]
-            
+
             for code, description in categories:
                 existing = self.db.query_one(
                     "SELECT id FROM sa_aliases WHERE kind = 'tax_category' AND alias = ?",
                     (code,)
                 )
-                
+
                 if not existing:
                     self.db.execute(
                         "INSERT INTO sa_aliases (kind, alias, canonical) VALUES (?, ?, ?)",
                         ('tax_category', code, description)
                     )
-                    
+
         except Exception as e:
             self.logger.warning(f"Failed to insert default tax categories: {e}")
 
     # Action implementations (placeholders for now)
-    async def _ingest_document(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _ingest_document(self, params: dict[str, Any]) -> dict[str, Any]:
         """Ingest and parse a document."""
         return {"status": "placeholder", "message": "Document ingestion not yet implemented"}
 
-    async def _infer_document(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _infer_document(self, params: dict[str, Any]) -> dict[str, Any]:
         """Infer document type and extract fields."""
         return {"status": "placeholder", "message": "Document inference not yet implemented"}
 
-    async def _import_statement(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _import_statement(self, params: dict[str, Any]) -> dict[str, Any]:
         """Import bank/card statement."""
         return {"status": "placeholder", "message": "Statement import not yet implemented"}
 
-    async def _parse_qr_bill(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _parse_qr_bill(self, params: dict[str, Any]) -> dict[str, Any]:
         """Parse Swiss QR-bill."""
         return {"status": "placeholder", "message": "QR-bill parsing not yet implemented"}
 
-    async def _add_expense(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _add_expense(self, params: dict[str, Any]) -> dict[str, Any]:
         """Add expense manually."""
         return {"status": "placeholder", "message": "Add expense not yet implemented"}
 
-    async def _list_expenses(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _list_expenses(self, params: dict[str, Any]) -> dict[str, Any]:
         """List expenses with filters."""
         return {"status": "placeholder", "message": "List expenses not yet implemented"}
 
-    async def _reconcile(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _reconcile(self, params: dict[str, Any]) -> dict[str, Any]:
         """Reconcile expenses with transactions."""
         return {"status": "placeholder", "message": "Reconciliation not yet implemented"}
 
-    async def _monthly_report(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _monthly_report(self, params: dict[str, Any]) -> dict[str, Any]:
         """Generate monthly report."""
         return {"status": "placeholder", "message": "Monthly report not yet implemented"}
 
-    async def _set_tax_profile(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _set_tax_profile(self, params: dict[str, Any]) -> dict[str, Any]:
         """Set tax profile for canton/year."""
         return {"status": "placeholder", "message": "Tax profile setting not yet implemented"}
 
-    async def _yearly_tax_report(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _yearly_tax_report(self, params: dict[str, Any]) -> dict[str, Any]:
         """Generate yearly tax report."""
         return {"status": "placeholder", "message": "Yearly tax report not yet implemented"}
 
-    async def _tva_ledger(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _tva_ledger(self, params: dict[str, Any]) -> dict[str, Any]:
         """Generate TVA/VAT ledger."""
         return {"status": "placeholder", "message": "TVA ledger not yet implemented"}
 
-    async def _export_tax_csv(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _export_tax_csv(self, params: dict[str, Any]) -> dict[str, Any]:
         """Export tax data as CSV."""
         return {"status": "placeholder", "message": "Tax CSV export not yet implemented"}
 
-    async def _export_excel(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _export_excel(self, params: dict[str, Any]) -> dict[str, Any]:
         """Export data as Excel."""
         return {"status": "placeholder", "message": "Excel export not yet implemented"}
 
-    async def _evidence_pack(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _evidence_pack(self, params: dict[str, Any]) -> dict[str, Any]:
         """Generate evidence pack ZIP."""
         return {"status": "placeholder", "message": "Evidence pack not yet implemented"}
 
-    async def _add_rule(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _add_rule(self, params: dict[str, Any]) -> dict[str, Any]:
         """Add user rule (admin only)."""
         return {"status": "placeholder", "message": "Add rule not yet implemented"}
 
-    async def _list_rules(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _list_rules(self, params: dict[str, Any]) -> dict[str, Any]:
         """List user rules."""
         return {"status": "placeholder", "message": "List rules not yet implemented"}
 
-    async def _delete_rule(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _delete_rule(self, params: dict[str, Any]) -> dict[str, Any]:
         """Delete rule (admin only)."""
         return {"status": "placeholder", "message": "Delete rule not yet implemented"}
 
-    async def _update_rates(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _update_rates(self, params: dict[str, Any]) -> dict[str, Any]:
         """Update rates (VAT, FX, social)."""
         return {"status": "placeholder", "message": "Update rates not yet implemented"}
 
-    async def _ai_set_policy(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _ai_set_policy(self, params: dict[str, Any]) -> dict[str, Any]:
         """Set AI policy."""
         return {"status": "placeholder", "message": "AI policy setting not yet implemented"}
 
-    async def _delete_document(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _delete_document(self, params: dict[str, Any]) -> dict[str, Any]:
         """Delete document (admin only)."""
         return {"status": "placeholder", "message": "Delete document not yet implemented"}
 
-    async def _delete_expense(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _delete_expense(self, params: dict[str, Any]) -> dict[str, Any]:
         """Delete expense (admin only)."""
         return {"status": "placeholder", "message": "Delete expense not yet implemented"}
 
-    async def _rename_category(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _rename_category(self, params: dict[str, Any]) -> dict[str, Any]:
         """Rename category (admin only)."""
         return {"status": "placeholder", "message": "Rename category not yet implemented"}
 
-    async def _upsert_alias(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _upsert_alias(self, params: dict[str, Any]) -> dict[str, Any]:
         """Upsert alias (admin only)."""
         return {"status": "placeholder", "message": "Upsert alias not yet implemented"}
 

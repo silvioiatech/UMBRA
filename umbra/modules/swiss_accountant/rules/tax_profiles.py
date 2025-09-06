@@ -2,12 +2,11 @@
 Swiss Tax Profiles Manager
 Manages canton/year specific tax profiles with deduction caps and allowances.
 """
-from typing import Dict, List, Optional, Tuple, Any
-from decimal import Decimal
-from datetime import datetime, date
-from enum import Enum
 import json
 import logging
+from decimal import Decimal
+from enum import Enum
+from typing import Any
 
 
 class MaritalStatus(Enum):
@@ -30,7 +29,7 @@ class TransportMode(Enum):
 
 class TaxProfileManager:
     """Manages Swiss tax profiles by canton and year."""
-    
+
     def __init__(self, db_manager):
         """Initialize tax profile manager.
         
@@ -39,7 +38,7 @@ class TaxProfileManager:
         """
         self.db = db_manager
         self.logger = logging.getLogger(__name__)
-        
+
         # Swiss cantons
         self.cantons = {
             'AG': 'Aargau', 'AI': 'Appenzell Innerrhoden', 'AR': 'Appenzell Ausserrhoden',
@@ -50,10 +49,10 @@ class TaxProfileManager:
             'SZ': 'Schwyz', 'TG': 'Thurgau', 'TI': 'Ticino', 'UR': 'Uri',
             'VD': 'Vaud', 'VS': 'Valais', 'ZG': 'Zug', 'ZH': 'Zürich'
         }
-        
+
         # Initialize default tax profiles
         self._init_tax_profiles()
-    
+
     def _init_tax_profiles(self):
         """Initialize default tax profiles for Swiss cantons."""
         try:
@@ -78,16 +77,16 @@ class TaxProfileManager:
                     UNIQUE(user_id, year)
                 )
             """)
-            
+
             # Insert default federal tax data for 2024
             self._insert_federal_tax_data_2024()
-            
+
             # Insert canton-specific data
             self._insert_canton_tax_data_2024()
-            
+
         except Exception as e:
             self.logger.error(f"Tax profiles initialization failed: {e}")
-    
+
     def _insert_federal_tax_data_2024(self):
         """Insert federal tax data for 2024."""
         federal_data = {
@@ -153,18 +152,18 @@ class TaxProfileManager:
                 }
             }
         }
-        
+
         # Store in database as JSON
         existing = self.db.query_one(
             "SELECT id FROM sa_user_rules WHERE rule_json LIKE '%federal_tax_data_2024%'"
         )
-        
+
         if not existing:
             self.db.execute(
                 "INSERT INTO sa_user_rules (user_id, rule_json) VALUES (?, ?)",
                 ('system', json.dumps({'type': 'federal_tax_data_2024', 'data': federal_data}))
             )
-    
+
     def _insert_canton_tax_data_2024(self):
         """Insert canton-specific tax data for 2024."""
         # Sample canton data - in production, this would be comprehensive
@@ -220,13 +219,13 @@ class TaxProfileManager:
                 'childcare_additional': 1500
             }
         }
-        
+
         for canton_code, data in canton_data.items():
             existing = self.db.query_one(
                 "SELECT id FROM sa_user_rules WHERE rule_json LIKE ? AND rule_json LIKE ?",
-                (f'%canton_tax_data_2024%', f'%{canton_code}%')
+                ('%canton_tax_data_2024%', f'%{canton_code}%')
             )
-            
+
             if not existing:
                 self.db.execute(
                     "INSERT INTO sa_user_rules (user_id, rule_json) VALUES (?, ?)",
@@ -236,8 +235,8 @@ class TaxProfileManager:
                         'data': data
                     }))
                 )
-    
-    def set_tax_profile(self, 
+
+    def set_tax_profile(self,
                        user_id: str,
                        year: int,
                        canton: str,
@@ -248,7 +247,7 @@ class TaxProfileManager:
                        commute_km: int = 0,
                        commute_days_per_week: int = 5,
                        transport_mode: TransportMode = TransportMode.PUBLIC_TRANSPORT,
-                       source_tax_percentage: float = 0) -> Dict[str, Any]:
+                       source_tax_percentage: float = 0) -> dict[str, Any]:
         """Set tax profile for user.
         
         Args:
@@ -275,19 +274,19 @@ class TaxProfileManager:
                     'error': f'Invalid canton: {canton}',
                     'valid_cantons': list(self.cantons.keys())
                 }
-            
+
             # Calculate estimated annual commute costs
             commute_costs = self._calculate_commute_allowance(
-                commute_km, 
-                commute_days_per_week, 
+                commute_km,
+                commute_days_per_week,
                 transport_mode,
                 canton,
                 year
             )
-            
+
             # Get canton-specific data
             canton_data = self._get_canton_data(canton, year)
-            
+
             # Build profile data
             profile_data = {
                 'canton_name': self.cantons[canton],
@@ -297,13 +296,13 @@ class TaxProfileManager:
                     year, canton, marital_status, children_count, commute_costs
                 )
             }
-            
+
             # Upsert tax profile
             existing = self.db.query_one(
                 "SELECT id FROM sa_tax_profiles WHERE user_id = ? AND year = ?",
                 (user_id, year)
             )
-            
+
             if existing:
                 # Update existing
                 self.db.execute("""
@@ -333,7 +332,7 @@ class TaxProfileManager:
                     religion, commute_km, commute_days_per_week, transport_mode.value,
                     source_tax_percentage, json.dumps(profile_data)
                 ))
-            
+
             return {
                 'success': True,
                 'profile_id': profile_id,
@@ -343,15 +342,15 @@ class TaxProfileManager:
                 'estimated_total_deductions': profile_data['estimated_deductions']['total'],
                 'profile_data': profile_data
             }
-            
+
         except Exception as e:
             self.logger.error(f"Tax profile setting failed: {e}")
             return {
                 'success': False,
                 'error': str(e)
             }
-    
-    def get_tax_profile(self, user_id: str, year: int) -> Optional[Dict[str, Any]]:
+
+    def get_tax_profile(self, user_id: str, year: int) -> dict[str, Any] | None:
         """Get tax profile for user and year.
         
         Args:
@@ -366,13 +365,13 @@ class TaxProfileManager:
                 "SELECT * FROM sa_tax_profiles WHERE user_id = ? AND year = ?",
                 (user_id, year)
             )
-            
+
             if not profile:
                 return None
-            
+
             # Parse profile data
             profile_data = json.loads(profile['profile_data_json']) if profile['profile_data_json'] else {}
-            
+
             return {
                 'id': profile['id'],
                 'user_id': profile['user_id'],
@@ -391,17 +390,17 @@ class TaxProfileManager:
                 'created_at': profile['created_at'],
                 'updated_at': profile['updated_at']
             }
-            
+
         except Exception as e:
             self.logger.error(f"Tax profile retrieval failed: {e}")
             return None
-    
-    def _calculate_commute_allowance(self, 
-                                   km: int, 
-                                   days_per_week: int, 
+
+    def _calculate_commute_allowance(self,
+                                   km: int,
+                                   days_per_week: int,
                                    transport_mode: TransportMode,
                                    canton: str,
-                                   year: int) -> Dict[str, Any]:
+                                   year: int) -> dict[str, Any]:
         """Calculate commute allowance for given parameters.
         
         Args:
@@ -417,32 +416,32 @@ class TaxProfileManager:
         try:
             # Federal base rates for 2024
             federal_data = self._get_federal_data(year)
-            
+
             if transport_mode == TransportMode.PUBLIC_TRANSPORT:
                 # Public transport: actual costs up to maximum
                 estimated_annual_cost = km * 2 * days_per_week * 48 * 0.30  # Rough estimate
                 max_deduction = federal_data.get('commute_public_transport', {}).get('maximum', 3000)
                 annual_deduction = min(estimated_annual_cost, max_deduction)
-                
+
                 # Canton bonus
                 canton_data = self._get_canton_data(canton, year)
                 bonus = canton_data.get('specific_deductions', {}).get('commute_public_transport_bonus', 0)
                 annual_deduction += bonus
-                
+
             elif transport_mode == TransportMode.CAR:
                 # Car: per km rate
                 rate_per_km = federal_data.get('commute_car', {}).get('rate_per_km', 0.70)
                 min_distance = federal_data.get('commute_car', {}).get('minimum_distance', 2)
-                
+
                 if km >= min_distance:
                     annual_deduction = km * 2 * days_per_week * 48 * rate_per_km
                 else:
                     annual_deduction = 0
-                    
+
             else:
                 # Other modes (bicycle, walking, mixed)
                 annual_deduction = 0
-            
+
             return {
                 'transport_mode': transport_mode.value,
                 'distance_km': km,
@@ -450,7 +449,7 @@ class TaxProfileManager:
                 'annual_deduction': round(annual_deduction, 2),
                 'calculation_method': 'federal_rates_2024'
             }
-            
+
         except Exception as e:
             self.logger.error(f"Commute allowance calculation failed: {e}")
             return {
@@ -460,83 +459,83 @@ class TaxProfileManager:
                 'annual_deduction': 0,
                 'error': str(e)
             }
-    
-    def _get_federal_data(self, year: int) -> Dict[str, Any]:
+
+    def _get_federal_data(self, year: int) -> dict[str, Any]:
         """Get federal tax data for year."""
         try:
             rule = self.db.query_one(
                 "SELECT rule_json FROM sa_user_rules WHERE rule_json LIKE ? AND rule_json LIKE ?",
                 (f'%federal_tax_data_{year}%', '%federal_deductions%')
             )
-            
+
             if rule:
                 data = json.loads(rule['rule_json'])
                 return data.get('data', {}).get('federal_deductions', {})
-            
+
             # Fallback to default values
             return {
                 'commute_public_transport': {'maximum': 3000},
                 'commute_car': {'rate_per_km': 0.70, 'minimum_distance': 2}
             }
-            
+
         except Exception as e:
             self.logger.error(f"Federal data retrieval failed: {e}")
             return {}
-    
-    def _get_canton_data(self, canton: str, year: int) -> Dict[str, Any]:
+
+    def _get_canton_data(self, canton: str, year: int) -> dict[str, Any]:
         """Get canton-specific tax data."""
         try:
             rule = self.db.query_one(
                 "SELECT rule_json FROM sa_user_rules WHERE rule_json LIKE ? AND rule_json LIKE ?",
                 (f'%canton_tax_data_{year}%', f'%{canton}%')
             )
-            
+
             if rule:
                 data = json.loads(rule['rule_json'])
                 return data.get('data', {})
-            
+
             return {}
-            
+
         except Exception as e:
             self.logger.error(f"Canton data retrieval failed: {e}")
             return {}
-    
-    def _estimate_deductions(self, 
+
+    def _estimate_deductions(self,
                            year: int,
                            canton: str,
                            marital_status: MaritalStatus,
                            children_count: int,
-                           commute_costs: Dict[str, Any]) -> Dict[str, Any]:
+                           commute_costs: dict[str, Any]) -> dict[str, Any]:
         """Estimate total deductions for profile."""
         try:
             federal_data = self._get_federal_data(year)
             canton_data = self._get_canton_data(canton, year)
-            
+
             # Professional expenses minimum
             professional_min = federal_data.get('professional_expenses', {}).get('minimum', 2000)
-            
+
             # Commute
             commute_deduction = commute_costs.get('annual_deduction', 0)
-            
+
             # Pillar 3a typical
             pillar_3a_typical = federal_data.get('pillar_3a', {}).get('employed_max', 7056)
-            
+
             # Childcare estimate
             childcare_max_per_child = federal_data.get('childcare', {}).get('maximum', 25000)
             canton_childcare_bonus = canton_data.get('childcare_additional', 0)
             childcare_estimate = children_count * (childcare_max_per_child + canton_childcare_bonus)
-            
+
             # Insurance estimate
             insurance_estimate = canton_data.get('specific_deductions', {}).get('insurance_bonus', 500)
-            
+
             total_estimate = (
-                professional_min + 
-                commute_deduction + 
-                pillar_3a_typical + 
-                childcare_estimate + 
+                professional_min +
+                commute_deduction +
+                pillar_3a_typical +
+                childcare_estimate +
                 insurance_estimate
             )
-            
+
             return {
                 'professional_expenses': professional_min,
                 'commute': commute_deduction,
@@ -549,16 +548,16 @@ class TaxProfileManager:
                     'canton_specific': commute_deduction + childcare_estimate + insurance_estimate
                 }
             }
-            
+
         except Exception as e:
             self.logger.error(f"Deduction estimation failed: {e}")
             return {'total': 0, 'error': str(e)}
-    
-    def calculate_tax_savings(self, 
-                            user_id: str, 
-                            year: int, 
+
+    def calculate_tax_savings(self,
+                            user_id: str,
+                            year: int,
                             gross_income: Decimal,
-                            additional_deductions: Decimal = Decimal('0')) -> Dict[str, Any]:
+                            additional_deductions: Decimal = Decimal('0')) -> dict[str, Any]:
         """Calculate estimated tax savings for given income and deductions.
         
         Args:
@@ -577,26 +576,26 @@ class TaxProfileManager:
                     'success': False,
                     'error': 'No tax profile found for user and year'
                 }
-            
+
             # Get estimated deductions from profile
             estimated_deductions = profile['profile_data'].get('estimated_deductions', {})
             total_deductions = Decimal(str(estimated_deductions.get('total', 0))) + additional_deductions
-            
+
             # Simplified tax calculation (this would be much more complex in reality)
             # This is just an estimate for demonstration
-            
+
             # Social insurance deductions (approximate)
             social_insurance = gross_income * Decimal('0.064')  # AHV/IV + ALV + BVG approx
-            
+
             # Taxable income
             taxable_income = gross_income - total_deductions - social_insurance
-            
+
             # Simplified progressive tax (very rough estimate)
             canton = profile['canton']
             canton_data = self._get_canton_data(canton, year)
             canton_multiplier = Decimal(str(canton_data.get('multiplier', 1.0)))
             commune_multiplier = Decimal(str(canton_data.get('commune_avg_multiplier', 1.0)))
-            
+
             # Federal tax (simplified)
             if taxable_income <= 14500:
                 federal_tax = Decimal('0')
@@ -604,13 +603,13 @@ class TaxProfileManager:
                 federal_tax = (taxable_income - 14500) * Decimal('0.0077')
             else:
                 federal_tax = 131 + (taxable_income - 31600) * Decimal('0.088')
-            
+
             # Canton/commune tax (very simplified)
             canton_commune_tax = federal_tax * canton_multiplier * commune_multiplier
-            
+
             total_tax = federal_tax + canton_commune_tax
             net_income = gross_income - social_insurance - total_tax
-            
+
             return {
                 'success': True,
                 'gross_income': gross_income,
@@ -625,7 +624,7 @@ class TaxProfileManager:
                 'deduction_breakdown': estimated_deductions,
                 'note': 'This is a simplified calculation for estimation purposes only'
             }
-            
+
         except Exception as e:
             self.logger.error(f"Tax calculation failed: {e}")
             return {

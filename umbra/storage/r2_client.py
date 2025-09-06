@@ -2,14 +2,15 @@
 Cloudflare R2 Client - F4R2: S3-compatible object storage client.
 Thin wrapper around boto3 for Cloudflare R2 with optimized settings.
 """
-import boto3
 import time
-from typing import Optional, Dict, Any
-from botocore.config import Config
-from botocore.exceptions import ClientError, BotoCoreError
+from typing import Any
 
-from ..core.logger import get_context_logger
+import boto3
+from botocore.config import Config
+from botocore.exceptions import BotoCoreError, ClientError
+
 from ..core.config import config
+from ..core.logger import get_context_logger
 
 logger = get_context_logger(__name__)
 
@@ -36,22 +37,22 @@ class R2Client:
     F4R2 Implementation: Optimized for R2 with proper error handling,
     connection pooling, and monitoring.
     """
-    
+
     def __init__(self, config_obj=None):
         self.config = config_obj or config
         self.logger = get_context_logger(__name__)
-        
+
         # R2 configuration
         self.account_id = getattr(self.config, 'R2_ACCOUNT_ID', None)
         self.access_key_id = getattr(self.config, 'R2_ACCESS_KEY_ID', None)
         self.secret_access_key = getattr(self.config, 'R2_SECRET_ACCESS_KEY', None)
         self.bucket_name = getattr(self.config, 'R2_BUCKET', None)
         self.endpoint_url = getattr(self.config, 'R2_ENDPOINT', None)
-        
+
         # Auto-generate endpoint if account_id provided but no explicit endpoint
         if self.account_id and not self.endpoint_url:
             self.endpoint_url = f"https://{self.account_id}.r2.cloudflarestorage.com"
-        
+
         # Boto3 configuration optimized for R2
         self.boto_config = Config(
             region_name='auto',  # R2 uses 'auto' region
@@ -63,11 +64,11 @@ class R2Client:
             connect_timeout=10,
             read_timeout=30
         )
-        
+
         # Initialize S3 client
         self.s3_client = None
         self._initialize_client()
-        
+
         self.logger.info(
             "R2 client initialized",
             extra={
@@ -77,14 +78,14 @@ class R2Client:
                 "available": self.is_available()
             }
         )
-    
+
     def _initialize_client(self) -> None:
         """Initialize the S3 client for R2."""
-        
+
         if not self.is_configured():
             self.logger.warning("R2 not configured, client will be unavailable")
             return
-        
+
         try:
             self.s3_client = boto3.client(
                 's3',
@@ -93,10 +94,10 @@ class R2Client:
                 aws_secret_access_key=self.secret_access_key,
                 config=self.boto_config
             )
-            
+
             # Test connection with a simple head_bucket call
             self.s3_client.head_bucket(Bucket=self.bucket_name)
-            
+
             self.logger.info(
                 "R2 client connection verified",
                 extra={
@@ -104,10 +105,10 @@ class R2Client:
                     "endpoint": self.endpoint_url
                 }
             )
-            
+
         except ClientError as e:
             error_code = e.response.get('Error', {}).get('Code', 'Unknown')
-            
+
             if error_code == 'NoSuchBucket':
                 self.logger.error(
                     "R2 bucket does not exist",
@@ -135,7 +136,7 @@ class R2Client:
                     }
                 )
                 raise R2ConnectionError(f"Failed to initialize R2 client: {error_code}")
-                
+
         except BotoCoreError as e:
             self.logger.error(
                 "R2 connection error",
@@ -145,7 +146,7 @@ class R2Client:
                 }
             )
             raise R2ConnectionError(f"R2 connection error: {str(e)}")
-    
+
     def is_configured(self) -> bool:
         """Check if R2 is properly configured."""
         required_fields = [
@@ -155,29 +156,29 @@ class R2Client:
             self.endpoint_url
         ]
         return all(field is not None for field in required_fields)
-    
+
     def is_available(self) -> bool:
         """Check if R2 client is available and working."""
         if not self.is_configured():
             return False
-        
+
         if self.s3_client is None:
             return False
-        
+
         try:
             # Quick connectivity test
             self.s3_client.head_bucket(Bucket=self.bucket_name)
             return True
         except Exception:
             return False
-    
+
     def put_object(
-        self, 
-        key: str, 
-        data: bytes, 
-        content_type: Optional[str] = None,
-        metadata: Optional[Dict[str, str]] = None
-    ) -> Dict[str, Any]:
+        self,
+        key: str,
+        data: bytes,
+        content_type: str | None = None,
+        metadata: dict[str, str] | None = None
+    ) -> dict[str, Any]:
         """
         Upload object to R2.
         
@@ -190,12 +191,12 @@ class R2Client:
         Returns:
             Dict with ETag, upload info
         """
-        
+
         if not self.is_available():
             raise R2ClientError("R2 client not available")
-        
+
         start_time = time.time()
-        
+
         try:
             # Build put request parameters
             put_params = {
@@ -203,18 +204,18 @@ class R2Client:
                 'Key': key,
                 'Body': data
             }
-            
+
             if content_type:
                 put_params['ContentType'] = content_type
-            
+
             if metadata:
                 put_params['Metadata'] = metadata
-            
+
             # Upload object
             response = self.s3_client.put_object(**put_params)
-            
+
             duration_ms = (time.time() - start_time) * 1000
-            
+
             self.logger.info(
                 "R2 object uploaded",
                 extra={
@@ -225,17 +226,17 @@ class R2Client:
                     "duration_ms": round(duration_ms, 2)
                 }
             )
-            
+
             return {
                 "etag": response.get('ETag', '').strip('"'),
                 "version_id": response.get('VersionId'),
                 "size": len(data),
                 "duration_ms": round(duration_ms, 2)
             }
-            
+
         except ClientError as e:
             error_code = e.response.get('Error', {}).get('Code', 'Unknown')
-            
+
             self.logger.error(
                 "R2 put_object failed",
                 extra={
@@ -244,12 +245,12 @@ class R2Client:
                     "size_bytes": len(data)
                 }
             )
-            
+
             if error_code == 'NoSuchBucket':
                 raise R2NotFoundError(f"Bucket '{self.bucket_name}' not found")
             else:
                 raise R2ClientError(f"Failed to upload object: {error_code}")
-                
+
         except Exception as e:
             self.logger.error(
                 "R2 put_object unexpected error",
@@ -260,8 +261,8 @@ class R2Client:
                 }
             )
             raise R2ClientError(f"Unexpected error uploading object: {str(e)}")
-    
-    def get_object(self, key: str) -> Dict[str, Any]:
+
+    def get_object(self, key: str) -> dict[str, Any]:
         """
         Download object from R2.
         
@@ -271,23 +272,23 @@ class R2Client:
         Returns:
             Dict with object data, metadata, etag
         """
-        
+
         if not self.is_available():
             raise R2ClientError("R2 client not available")
-        
+
         start_time = time.time()
-        
+
         try:
             response = self.s3_client.get_object(
                 Bucket=self.bucket_name,
                 Key=key
             )
-            
+
             # Read the object data
             object_data = response['Body'].read()
-            
+
             duration_ms = (time.time() - start_time) * 1000
-            
+
             self.logger.info(
                 "R2 object downloaded",
                 extra={
@@ -298,7 +299,7 @@ class R2Client:
                     "duration_ms": round(duration_ms, 2)
                 }
             )
-            
+
             return {
                 "data": object_data,
                 "etag": response.get('ETag', '').strip('"'),
@@ -308,10 +309,10 @@ class R2Client:
                 "size": len(object_data),
                 "duration_ms": round(duration_ms, 2)
             }
-            
+
         except ClientError as e:
             error_code = e.response.get('Error', {}).get('Code', 'Unknown')
-            
+
             if error_code == 'NoSuchKey':
                 self.logger.debug(
                     "R2 object not found",
@@ -327,7 +328,7 @@ class R2Client:
                     }
                 )
                 raise R2ClientError(f"Failed to download object: {error_code}")
-                
+
         except Exception as e:
             self.logger.error(
                 "R2 get_object unexpected error",
@@ -338,8 +339,8 @@ class R2Client:
                 }
             )
             raise R2ClientError(f"Unexpected error downloading object: {str(e)}")
-    
-    def head_object(self, key: str) -> Dict[str, Any]:
+
+    def head_object(self, key: str) -> dict[str, Any]:
         """
         Get object metadata without downloading content.
         
@@ -349,16 +350,16 @@ class R2Client:
         Returns:
             Dict with metadata, etag, size
         """
-        
+
         if not self.is_available():
             raise R2ClientError("R2 client not available")
-        
+
         try:
             response = self.s3_client.head_object(
                 Bucket=self.bucket_name,
                 Key=key
             )
-            
+
             self.logger.debug(
                 "R2 head_object success",
                 extra={
@@ -367,7 +368,7 @@ class R2Client:
                     "size": response.get('ContentLength', 0)
                 }
             )
-            
+
             return {
                 "etag": response.get('ETag', '').strip('"'),
                 "content_type": response.get('ContentType'),
@@ -375,10 +376,10 @@ class R2Client:
                 "last_modified": response.get('LastModified'),
                 "size": response.get('ContentLength', 0)
             }
-            
+
         except ClientError as e:
             error_code = e.response.get('Error', {}).get('Code', 'Unknown')
-            
+
             if error_code == 'NoSuchKey':
                 raise R2NotFoundError(f"Object '{key}' not found")
             else:
@@ -390,7 +391,7 @@ class R2Client:
                     }
                 )
                 raise R2ClientError(f"Failed to get object metadata: {error_code}")
-    
+
     def delete_object(self, key: str) -> bool:
         """
         Delete object from R2.
@@ -401,23 +402,23 @@ class R2Client:
         Returns:
             True if deleted or already didn't exist
         """
-        
+
         if not self.is_available():
             raise R2ClientError("R2 client not available")
-        
+
         try:
             self.s3_client.delete_object(
                 Bucket=self.bucket_name,
                 Key=key
             )
-            
+
             self.logger.info(
                 "R2 object deleted",
                 extra={"key": key}
             )
-            
+
             return True
-            
+
         except Exception as e:
             self.logger.error(
                 "R2 delete_object failed",
@@ -428,13 +429,13 @@ class R2Client:
                 }
             )
             raise R2ClientError(f"Failed to delete object: {str(e)}")
-    
+
     def list_objects(
-        self, 
-        prefix: str = "", 
+        self,
+        prefix: str = "",
         max_keys: int = 1000,
-        continuation_token: Optional[str] = None
-    ) -> Dict[str, Any]:
+        continuation_token: str | None = None
+    ) -> dict[str, Any]:
         """
         List objects in R2 bucket with optional prefix.
         
@@ -446,24 +447,24 @@ class R2Client:
         Returns:
             Dict with objects list and pagination info
         """
-        
+
         if not self.is_available():
             raise R2ClientError("R2 client not available")
-        
+
         try:
             list_params = {
                 'Bucket': self.bucket_name,
                 'MaxKeys': max_keys
             }
-            
+
             if prefix:
                 list_params['Prefix'] = prefix
-            
+
             if continuation_token:
                 list_params['ContinuationToken'] = continuation_token
-            
+
             response = self.s3_client.list_objects_v2(**list_params)
-            
+
             objects = []
             for obj in response.get('Contents', []):
                 objects.append({
@@ -472,7 +473,7 @@ class R2Client:
                     'size': obj.get('Size', 0),
                     'last_modified': obj.get('LastModified')
                 })
-            
+
             self.logger.debug(
                 "R2 list_objects success",
                 extra={
@@ -481,14 +482,14 @@ class R2Client:
                     "is_truncated": response.get('IsTruncated', False)
                 }
             )
-            
+
             return {
                 "objects": objects,
                 "is_truncated": response.get('IsTruncated', False),
                 "next_continuation_token": response.get('NextContinuationToken'),
                 "key_count": response.get('KeyCount', 0)
             }
-            
+
         except Exception as e:
             self.logger.error(
                 "R2 list_objects failed",
@@ -499,10 +500,10 @@ class R2Client:
                 }
             )
             raise R2ClientError(f"Failed to list objects: {str(e)}")
-    
+
     def generate_presigned_url(
-        self, 
-        key: str, 
+        self,
+        key: str,
         expiration: int = 3600,
         method: str = 'get_object'
     ) -> str:
@@ -517,17 +518,17 @@ class R2Client:
         Returns:
             Presigned URL string
         """
-        
+
         if not self.is_available():
             raise R2ClientError("R2 client not available")
-        
+
         try:
             url = self.s3_client.generate_presigned_url(
                 method,
                 Params={'Bucket': self.bucket_name, 'Key': key},
                 ExpiresIn=expiration
             )
-            
+
             self.logger.debug(
                 "R2 presigned URL generated",
                 extra={
@@ -536,9 +537,9 @@ class R2Client:
                     "expiration": expiration
                 }
             )
-            
+
             return url
-            
+
         except Exception as e:
             self.logger.error(
                 "R2 presigned URL generation failed",
@@ -549,10 +550,10 @@ class R2Client:
                 }
             )
             raise R2ClientError(f"Failed to generate presigned URL: {str(e)}")
-    
-    def get_client_info(self) -> Dict[str, Any]:
+
+    def get_client_info(self) -> dict[str, Any]:
         """Get R2 client configuration info (for debugging/status)."""
-        
+
         return {
             "configured": self.is_configured(),
             "available": self.is_available(),
@@ -563,9 +564,9 @@ class R2Client:
 
 # Export
 __all__ = [
-    "R2Client", 
-    "R2ClientError", 
-    "R2ConnectionError", 
-    "R2AuthenticationError", 
+    "R2Client",
+    "R2ClientError",
+    "R2ConnectionError",
+    "R2AuthenticationError",
     "R2NotFoundError"
 ]
