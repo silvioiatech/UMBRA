@@ -2,15 +2,13 @@
 R2 Search Index - F4R2: Simple inverted index for text search in manifests.
 Provides keyword and merchant search across stored documents.
 """
-import json
 import re
-from typing import Dict, Set, List, Any, Optional, Tuple
-from datetime import datetime, timezone
-from collections import defaultdict
 import unicodedata
+from datetime import UTC, datetime
+from typing import Any
 
-from .objects import ObjectStorage, ObjectNotFoundError, ObjectStorageError
 from ..core.logger import get_context_logger
+from .objects import ObjectNotFoundError, ObjectStorage
 
 logger = get_context_logger(__name__)
 
@@ -25,11 +23,11 @@ class SearchIndex:
     F4R2 Implementation: Provides basic keyword search functionality
     for documents stored in R2 manifests. Optimized for small to medium datasets.
     """
-    
+
     def __init__(self, storage: ObjectStorage):
         self.storage = storage
         self.logger = get_context_logger(__name__)
-        
+
         # Index configuration
         self.min_word_length = 2
         self.max_word_length = 50
@@ -42,13 +40,13 @@ class SearchIndex:
             'might', 'must', 'shall',
             # German stop words
             'der', 'die', 'das', 'den', 'dem', 'des', 'ein', 'eine', 'einer', 'eines',
-            'und', 'oder', 'aber', 'mit', 'von', 'zu', 'in', 'auf', 'für', 'bei',
+            'und', 'oder', 'aber', 'mit', 'von', 'zu', 'auf', 'für', 'bei',
             'ist', 'sind', 'war', 'waren', 'hat', 'haben', 'wird', 'werden',
-            # French stop words  
-            'le', 'la', 'les', 'un', 'une', 'du', 'de', 'des', 'et', 'ou', 'mais',
+            # French stop words
+            'le', 'la', 'les', 'un', 'une', 'du', 'de', 'et', 'ou', 'mais',
             'avec', 'dans', 'sur', 'pour', 'par', 'est', 'sont', 'était', 'étaient'
         }
-        
+
         self.logger.info(
             "Search index initialized",
             extra={
@@ -56,35 +54,35 @@ class SearchIndex:
                 "stop_words_count": len(self.stop_words)
             }
         )
-    
+
     def is_available(self) -> bool:
         """Check if search index is available."""
         return self.storage.is_available()
-    
+
     def _normalize_text(self, text: str) -> str:
         """Normalize text for indexing."""
         if not text:
             return ""
-        
+
         # Convert to lowercase and normalize unicode
         text = unicodedata.normalize('NFKD', text.lower())
-        
+
         # Remove accents/diacritics
         text = ''.join(c for c in text if not unicodedata.combining(c))
-        
+
         return text
-    
-    def _extract_words(self, text: str) -> Set[str]:
+
+    def _extract_words(self, text: str) -> set[str]:
         """Extract words from text for indexing."""
         if not text:
             return set()
-        
+
         # Normalize text
         normalized = self._normalize_text(text)
-        
+
         # Extract words (letters, numbers, some punctuation)
         words = re.findall(r'\b\w+\b', normalized)
-        
+
         # Filter words
         filtered_words = set()
         for word in words:
@@ -92,25 +90,25 @@ class SearchIndex:
                 word not in self.stop_words and
                 not word.isdigit()):  # Skip pure numbers
                 filtered_words.add(word)
-        
+
         return filtered_words
-    
-    def _get_index_key(self, module: str, user_id: Optional[int] = None) -> str:
+
+    def _get_index_key(self, module: str, user_id: int | None = None) -> str:
         """Generate index file key."""
         if user_id:
             return f"manifests/{module}/search_index-{user_id}.json"
         else:
             return f"manifests/{module}/search_index.json"
-    
-    def _load_index(self, module: str, user_id: Optional[int] = None) -> Dict[str, Any]:
+
+    def _load_index(self, module: str, user_id: int | None = None) -> dict[str, Any]:
         """Load existing search index."""
-        
+
         index_key = self._get_index_key(module, user_id)
-        
+
         try:
             result = self.storage.get_json(index_key)
             index_data = result['json_data']
-            
+
             self.logger.debug(
                 "Search index loaded",
                 extra={
@@ -119,15 +117,15 @@ class SearchIndex:
                     "documents": len(index_data.get('documents', {}))
                 }
             )
-            
+
             return index_data
-            
+
         except ObjectNotFoundError:
             # Return empty index
             return {
                 "version": "1.0",
-                "created_at": datetime.now(timezone.utc).isoformat(),
-                "updated_at": datetime.now(timezone.utc).isoformat(),
+                "created_at": datetime.now(UTC).isoformat(),
+                "updated_at": datetime.now(UTC).isoformat(),
                 "module": module,
                 "user_id": user_id,
                 "inverted_index": {},  # term -> set of document_ids
@@ -145,23 +143,23 @@ class SearchIndex:
                 extra={"key": index_key, "error": str(e)}
             )
             raise SearchIndexError(f"Failed to load search index: {str(e)}")
-    
-    def _save_index(self, index_data: Dict[str, Any], module: str, user_id: Optional[int] = None) -> None:
+
+    def _save_index(self, index_data: dict[str, Any], module: str, user_id: int | None = None) -> None:
         """Save search index to storage."""
-        
+
         index_key = self._get_index_key(module, user_id)
-        
+
         # Update metadata
-        index_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+        index_data["updated_at"] = datetime.now(UTC).isoformat()
         index_data["stats"] = {
             "total_documents": len(index_data.get("documents", {})),
             "total_terms": len(index_data.get("inverted_index", {})),
             "total_merchants": len(index_data.get("merchants", {}))
         }
-        
+
         try:
             self.storage.put_json(index_key, index_data)
-            
+
             self.logger.debug(
                 "Search index saved",
                 extra={
@@ -170,23 +168,23 @@ class SearchIndex:
                     "documents": index_data["stats"]["total_documents"]
                 }
             )
-            
+
         except Exception as e:
             self.logger.error(
                 "Failed to save search index",
                 extra={"key": index_key, "error": str(e)}
             )
             raise SearchIndexError(f"Failed to save search index: {str(e)}")
-    
+
     def add_document(
         self,
         module: str,
         document_id: str,
         text_content: str,
-        metadata: Optional[Dict[str, Any]] = None,
-        merchant: Optional[str] = None,
-        user_id: Optional[int] = None
-    ) -> Dict[str, Any]:
+        metadata: dict[str, Any] | None = None,
+        merchant: str | None = None,
+        user_id: int | None = None
+    ) -> dict[str, Any]:
         """
         Add or update document in search index.
         
@@ -201,16 +199,16 @@ class SearchIndex:
         Returns:
             Dict with indexing results
         """
-        
+
         if not self.is_available():
             raise SearchIndexError("Search index not available")
-        
+
         # Load current index
         index_data = self._load_index(module, user_id)
-        
+
         # Extract words from text content
         words = self._extract_words(text_content)
-        
+
         # Remove document from old index entries if it exists
         old_doc = index_data["documents"].get(document_id)
         if old_doc:
@@ -220,7 +218,7 @@ class SearchIndex:
                     index_data["inverted_index"][word].discard(document_id)
                     if not index_data["inverted_index"][word]:
                         del index_data["inverted_index"][word]
-            
+
             # Remove from merchant index
             old_merchant = old_doc.get("merchant")
             if old_merchant:
@@ -229,30 +227,30 @@ class SearchIndex:
                     index_data["merchants"][normalized_merchant].discard(document_id)
                     if not index_data["merchants"][normalized_merchant]:
                         del index_data["merchants"][normalized_merchant]
-        
+
         # Add document to inverted index
         for word in words:
             if word not in index_data["inverted_index"]:
                 index_data["inverted_index"][word] = set()
             index_data["inverted_index"][word].add(document_id)
-        
+
         # Add to merchant index if provided
         if merchant:
             normalized_merchant = self._normalize_text(merchant)
             if normalized_merchant not in index_data["merchants"]:
                 index_data["merchants"][normalized_merchant] = set()
             index_data["merchants"][normalized_merchant].add(document_id)
-        
+
         # Store document metadata
         index_data["documents"][document_id] = {
             "words": list(words),
             "merchant": merchant,
             "metadata": metadata or {},
-            "indexed_at": datetime.now(timezone.utc).isoformat(),
+            "indexed_at": datetime.now(UTC).isoformat(),
             "text_length": len(text_content),
             "word_count": len(words)
         }
-        
+
         # Convert sets to lists for JSON serialization
         serializable_index = {
             **index_data,
@@ -263,10 +261,10 @@ class SearchIndex:
                 merchant: list(doc_set) for merchant, doc_set in index_data["merchants"].items()
             }
         }
-        
+
         # Save updated index
         self._save_index(serializable_index, module, user_id)
-        
+
         self.logger.info(
             "Document added to search index",
             extra={
@@ -278,7 +276,7 @@ class SearchIndex:
                 "text_length": len(text_content)
             }
         )
-        
+
         return {
             "success": True,
             "document_id": document_id,
@@ -286,15 +284,15 @@ class SearchIndex:
             "total_terms": len(index_data["inverted_index"]),
             "total_documents": len(index_data["documents"])
         }
-    
+
     def search_keywords(
         self,
         module: str,
-        keywords: List[str],
-        user_id: Optional[int] = None,
+        keywords: list[str],
+        user_id: int | None = None,
         operator: str = 'AND',
         limit: int = 100
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Search documents by keywords.
         
@@ -308,53 +306,53 @@ class SearchIndex:
         Returns:
             List of matching documents with metadata
         """
-        
+
         if not self.is_available():
             raise SearchIndexError("Search index not available")
-        
+
         if not keywords:
             return []
-        
+
         # Load index
         index_data = self._load_index(module, user_id)
         inverted_index = {
             term: set(docs) for term, docs in index_data.get("inverted_index", {}).items()
         }
-        
+
         # Normalize keywords
         normalized_keywords = [self._normalize_text(kw) for kw in keywords if kw.strip()]
-        
+
         if not normalized_keywords:
             return []
-        
+
         # Find matching documents
         matching_docs = None
-        
+
         for keyword in normalized_keywords:
             keyword_docs = set()
-            
+
             # Find exact matches and partial matches
             for term, doc_set in inverted_index.items():
                 if keyword in term or term in keyword:
                     keyword_docs.update(doc_set)
-            
+
             if matching_docs is None:
                 matching_docs = keyword_docs
             elif operator.upper() == 'AND':
                 matching_docs = matching_docs.intersection(keyword_docs)
             elif operator.upper() == 'OR':
                 matching_docs = matching_docs.union(keyword_docs)
-        
+
         if not matching_docs:
             return []
-        
+
         # Build results with metadata
         results = []
         documents = index_data.get("documents", {})
-        
+
         for doc_id in list(matching_docs)[:limit]:
             doc_info = documents.get(doc_id, {})
-            
+
             results.append({
                 "document_id": doc_id,
                 "merchant": doc_info.get("merchant"),
@@ -363,10 +361,10 @@ class SearchIndex:
                 "text_length": doc_info.get("text_length", 0),
                 "word_count": doc_info.get("word_count", 0)
             })
-        
+
         # Sort by indexed_at (most recent first)
         results.sort(key=lambda x: x.get("indexed_at", ""), reverse=True)
-        
+
         self.logger.debug(
             "Keyword search completed",
             extra={
@@ -377,16 +375,16 @@ class SearchIndex:
                 "user_id": user_id
             }
         )
-        
+
         return results
-    
+
     def search_merchants(
         self,
         module: str,
         merchant_query: str,
-        user_id: Optional[int] = None,
+        user_id: int | None = None,
         limit: int = 100
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Search documents by merchant name.
         
@@ -399,41 +397,41 @@ class SearchIndex:
         Returns:
             List of matching documents
         """
-        
+
         if not self.is_available():
             raise SearchIndexError("Search index not available")
-        
+
         if not merchant_query.strip():
             return []
-        
+
         # Load index
         index_data = self._load_index(module, user_id)
         merchants_index = {
             merchant: set(docs) for merchant, docs in index_data.get("merchants", {}).items()
         }
-        
+
         # Normalize merchant query
         normalized_query = self._normalize_text(merchant_query)
-        
+
         # Find matching merchants
         matching_docs = set()
         matched_merchants = []
-        
+
         for merchant, doc_set in merchants_index.items():
             if normalized_query in merchant or merchant in normalized_query:
                 matching_docs.update(doc_set)
                 matched_merchants.append(merchant)
-        
+
         if not matching_docs:
             return []
-        
+
         # Build results
         results = []
         documents = index_data.get("documents", {})
-        
+
         for doc_id in list(matching_docs)[:limit]:
             doc_info = documents.get(doc_id, {})
-            
+
             results.append({
                 "document_id": doc_id,
                 "merchant": doc_info.get("merchant"),
@@ -442,10 +440,10 @@ class SearchIndex:
                 "text_length": doc_info.get("text_length", 0),
                 "word_count": doc_info.get("word_count", 0)
             })
-        
+
         # Sort by indexed_at (most recent first)
         results.sort(key=lambda x: x.get("indexed_at", ""), reverse=True)
-        
+
         self.logger.debug(
             "Merchant search completed",
             extra={
@@ -456,10 +454,10 @@ class SearchIndex:
                 "user_id": user_id
             }
         )
-        
+
         return results
-    
-    def get_index_stats(self, module: str, user_id: Optional[int] = None) -> Dict[str, Any]:
+
+    def get_index_stats(self, module: str, user_id: int | None = None) -> dict[str, Any]:
         """
         Get search index statistics.
         
@@ -470,13 +468,13 @@ class SearchIndex:
         Returns:
             Dict with index statistics
         """
-        
+
         if not self.is_available():
             return {"available": False, "error": "Search index not available"}
-        
+
         try:
             index_data = self._load_index(module, user_id)
-            
+
             return {
                 "available": True,
                 "module": module,
@@ -488,18 +486,18 @@ class SearchIndex:
                 "sample_terms": list(index_data.get("inverted_index", {}).keys())[:10],
                 "sample_merchants": list(index_data.get("merchants", {}).keys())[:10]
             }
-            
+
         except Exception as e:
             return {
                 "available": True,
                 "error": f"Failed to get stats: {str(e)}"
             }
-    
+
     def remove_document(
         self,
         module: str,
         document_id: str,
-        user_id: Optional[int] = None
+        user_id: int | None = None
     ) -> bool:
         """
         Remove document from search index.
@@ -512,26 +510,26 @@ class SearchIndex:
         Returns:
             True if document was removed
         """
-        
+
         if not self.is_available():
             raise SearchIndexError("Search index not available")
-        
+
         # Load index
         index_data = self._load_index(module, user_id)
-        
+
         # Check if document exists
         if document_id not in index_data["documents"]:
             return False
-        
+
         doc_info = index_data["documents"][document_id]
-        
+
         # Remove from inverted index
         for word in doc_info.get("words", []):
             if word in index_data["inverted_index"]:
                 index_data["inverted_index"][word].discard(document_id)
                 if not index_data["inverted_index"][word]:
                     del index_data["inverted_index"][word]
-        
+
         # Remove from merchant index
         merchant = doc_info.get("merchant")
         if merchant:
@@ -540,10 +538,10 @@ class SearchIndex:
                 index_data["merchants"][normalized_merchant].discard(document_id)
                 if not index_data["merchants"][normalized_merchant]:
                     del index_data["merchants"][normalized_merchant]
-        
+
         # Remove document
         del index_data["documents"][document_id]
-        
+
         # Convert sets to lists for JSON serialization
         serializable_index = {
             **index_data,
@@ -554,10 +552,10 @@ class SearchIndex:
                 merchant: list(doc_set) for merchant, doc_set in index_data["merchants"].items()
             }
         }
-        
+
         # Save updated index
         self._save_index(serializable_index, module, user_id)
-        
+
         self.logger.info(
             "Document removed from search index",
             extra={
@@ -566,15 +564,15 @@ class SearchIndex:
                 "user_id": user_id
             }
         )
-        
+
         return True
-    
+
     def rebuild_index(
         self,
         module: str,
-        documents: List[Dict[str, Any]],
-        user_id: Optional[int] = None
-    ) -> Dict[str, Any]:
+        documents: list[dict[str, Any]],
+        user_id: int | None = None
+    ) -> dict[str, Any]:
         """
         Rebuild search index from scratch.
         
@@ -586,15 +584,15 @@ class SearchIndex:
         Returns:
             Dict with rebuild results
         """
-        
+
         if not self.is_available():
             raise SearchIndexError("Search index not available")
-        
+
         # Create new empty index
         index_data = {
             "version": "1.0",
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
+            "updated_at": datetime.now(UTC).isoformat(),
             "module": module,
             "user_id": user_id,
             "inverted_index": {},
@@ -602,50 +600,50 @@ class SearchIndex:
             "merchants": {},
             "stats": {}
         }
-        
+
         # Index all documents
         indexed_count = 0
         error_count = 0
-        
+
         for doc in documents:
             try:
                 document_id = doc.get("document_id")
                 text_content = doc.get("text_content", "")
                 metadata = doc.get("metadata", {})
                 merchant = doc.get("merchant")
-                
+
                 if not document_id:
                     error_count += 1
                     continue
-                
+
                 # Extract words
                 words = self._extract_words(text_content)
-                
+
                 # Add to inverted index
                 for word in words:
                     if word not in index_data["inverted_index"]:
                         index_data["inverted_index"][word] = set()
                     index_data["inverted_index"][word].add(document_id)
-                
+
                 # Add to merchant index
                 if merchant:
                     normalized_merchant = self._normalize_text(merchant)
                     if normalized_merchant not in index_data["merchants"]:
                         index_data["merchants"][normalized_merchant] = set()
                     index_data["merchants"][normalized_merchant].add(document_id)
-                
+
                 # Store document metadata
                 index_data["documents"][document_id] = {
                     "words": list(words),
                     "merchant": merchant,
                     "metadata": metadata,
-                    "indexed_at": datetime.now(timezone.utc).isoformat(),
+                    "indexed_at": datetime.now(UTC).isoformat(),
                     "text_length": len(text_content),
                     "word_count": len(words)
                 }
-                
+
                 indexed_count += 1
-                
+
             except Exception as e:
                 self.logger.warning(
                     "Failed to index document during rebuild",
@@ -655,7 +653,7 @@ class SearchIndex:
                     }
                 )
                 error_count += 1
-        
+
         # Convert sets to lists for JSON serialization
         serializable_index = {
             **index_data,
@@ -666,10 +664,10 @@ class SearchIndex:
                 merchant: list(doc_set) for merchant, doc_set in index_data["merchants"].items()
             }
         }
-        
+
         # Save rebuilt index
         self._save_index(serializable_index, module, user_id)
-        
+
         self.logger.info(
             "Search index rebuilt",
             extra={
@@ -681,7 +679,7 @@ class SearchIndex:
                 "total_merchants": len(index_data["merchants"])
             }
         )
-        
+
         return {
             "success": True,
             "indexed_documents": indexed_count,

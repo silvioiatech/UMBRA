@@ -8,13 +8,12 @@ Provides safe Docker container management with locking:
 - Container stats and monitoring
 - Resource locks for sensitive operations
 """
-import subprocess
 import json
-import time
+import subprocess
 import threading
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass
+from typing import Any
+
 
 @dataclass
 class ContainerInfo:
@@ -25,10 +24,10 @@ class ContainerInfo:
     status: str
     state: str
     created: str
-    ports: List[Dict[str, Any]]
-    mounts: List[Dict[str, Any]]
-    networks: List[str]
-    labels: Dict[str, str]
+    ports: list[dict[str, Any]]
+    mounts: list[dict[str, Any]]
+    networks: list[str]
+    labels: dict[str, str]
 
 @dataclass
 class ContainerStats:
@@ -47,26 +46,26 @@ class ContainerStats:
 
 class ContainerLock:
     """Thread-safe lock for container operations."""
-    
+
     def __init__(self):
         self._locks = {}
         self._lock_mutex = threading.Lock()
-    
+
     def acquire(self, container_name: str, timeout: float = 30.0) -> bool:
         """Acquire lock for container operation."""
         with self._lock_mutex:
             if container_name not in self._locks:
                 self._locks[container_name] = threading.Lock()
-        
+
         container_lock = self._locks[container_name]
         return container_lock.acquire(timeout=timeout)
-    
+
     def release(self, container_name: str):
         """Release lock for container operation."""
         with self._lock_mutex:
             if container_name in self._locks:
                 self._locks[container_name].release()
-    
+
     def is_locked(self, container_name: str) -> bool:
         """Check if container is locked."""
         with self._lock_mutex:
@@ -76,25 +75,25 @@ class ContainerLock:
 
 class DockerOps:
     """Docker operations with safety features and locking."""
-    
+
     def __init__(self):
         self.container_locks = ContainerLock()
         self.docker_available = self._check_docker_availability()
-    
+
     def _check_docker_availability(self) -> bool:
         """Check if Docker is available and accessible."""
         try:
             result = subprocess.run(
                 ['docker', 'version'],
-                capture_output=True,
+                check=False, capture_output=True,
                 text=True,
                 timeout=10
             )
             return result.returncode == 0
         except (subprocess.TimeoutExpired, FileNotFoundError):
             return False
-    
-    def _run_docker_command(self, cmd: List[str], timeout: int = 30) -> Tuple[bool, str, str]:
+
+    def _run_docker_command(self, cmd: list[str], timeout: int = 30) -> tuple[bool, str, str]:
         """
         Run Docker command safely with timeout.
         
@@ -104,7 +103,7 @@ class DockerOps:
         try:
             result = subprocess.run(
                 ['docker'] + cmd,
-                capture_output=True,
+                check=False, capture_output=True,
                 text=True,
                 timeout=timeout
             )
@@ -113,8 +112,8 @@ class DockerOps:
             return False, "", "Command timed out"
         except Exception as e:
             return False, "", str(e)
-    
-    def list_containers(self, all_containers: bool = True) -> List[ContainerInfo]:
+
+    def list_containers(self, all_containers: bool = True) -> list[ContainerInfo]:
         """
         List Docker containers with detailed information.
         
@@ -126,40 +125,40 @@ class DockerOps:
         """
         if not self.docker_available:
             return []
-        
+
         cmd = ['ps', '--format', '{{json .}}']
         if all_containers:
             cmd.append('--all')
-        
+
         success, stdout, stderr = self._run_docker_command(cmd)
         if not success:
             return []
-        
+
         containers = []
         for line in stdout.strip().split('\n'):
             if line:
                 try:
                     data = json.loads(line)
-                    
+
                     # Get detailed info for each container
                     container_info = self._get_container_details(data['ID'])
                     if container_info:
                         containers.append(container_info)
-                        
+
                 except json.JSONDecodeError:
                     continue
-        
+
         return containers
-    
-    def _get_container_details(self, container_id: str) -> Optional[ContainerInfo]:
+
+    def _get_container_details(self, container_id: str) -> ContainerInfo | None:
         """Get detailed information for a specific container."""
         success, stdout, stderr = self._run_docker_command(['inspect', container_id])
         if not success:
             return None
-        
+
         try:
             data = json.loads(stdout)[0]
-            
+
             # Extract port mappings
             ports = []
             if data.get('NetworkSettings', {}).get('Ports'):
@@ -177,7 +176,7 @@ class DockerOps:
                             'host_ip': '',
                             'host_port': ''
                         })
-            
+
             # Extract mount information
             mounts = []
             for mount in data.get('Mounts', []):
@@ -188,10 +187,10 @@ class DockerOps:
                     'mode': mount.get('Mode'),
                     'rw': mount.get('RW', True)
                 })
-            
+
             # Extract network information
             networks = list(data.get('NetworkSettings', {}).get('Networks', {}).keys())
-            
+
             return ContainerInfo(
                 container_id=data['Id'][:12],
                 name=data['Name'].lstrip('/'),
@@ -204,18 +203,18 @@ class DockerOps:
                 networks=networks,
                 labels=data['Config'].get('Labels', {}) or {}
             )
-            
+
         except (json.JSONDecodeError, KeyError, IndexError):
             return None
-    
+
     def tail_logs(
-        self, 
-        container: str, 
-        lines: int = 100, 
-        since: Optional[str] = None,
+        self,
+        container: str,
+        lines: int = 100,
+        since: str | None = None,
         follow: bool = False,
         timestamps: bool = True
-    ) -> Tuple[bool, str]:
+    ) -> tuple[bool, str]:
         """
         Tail container logs with options.
         
@@ -231,26 +230,26 @@ class DockerOps:
         """
         if not self.docker_available:
             return False, "Docker not available"
-        
+
         cmd = ['logs']
-        
+
         if timestamps:
             cmd.append('--timestamps')
-        
+
         if lines > 0:
             cmd.extend(['--tail', str(lines)])
-        
+
         if since:
             cmd.extend(['--since', since])
-        
+
         if follow:
             cmd.append('--follow')
-        
+
         cmd.append(container)
-        
+
         # Use shorter timeout for log tailing
         success, stdout, stderr = self._run_docker_command(cmd, timeout=15)
-        
+
         if success:
             # Truncate if too long (Telegram message limits)
             output = stdout
@@ -259,12 +258,12 @@ class DockerOps:
                 truncated_lines = lines[-50:]  # Last 50 lines
                 output = '\n'.join(truncated_lines)
                 output = f"[Truncated to last 50 lines]\n\n{output}"
-            
+
             return True, output
         else:
             return False, stderr
-    
-    def restart_container(self, container: str) -> Tuple[bool, str]:
+
+    def restart_container(self, container: str) -> tuple[bool, str]:
         """
         Restart a container with safety checks and locking.
         
@@ -276,24 +275,24 @@ class DockerOps:
         """
         if not self.docker_available:
             return False, "Docker not available"
-        
+
         # Acquire lock for this container
         if not self.container_locks.acquire(container, timeout=30):
             return False, f"Container {container} is locked by another operation"
-        
+
         try:
             # Check if container exists and get current state
             containers = self.list_containers(all_containers=True)
             target_container = None
-            
+
             for c in containers:
                 if c.name == container or c.container_id == container:
                     target_container = c
                     break
-            
+
             if not target_container:
                 return False, f"Container {container} not found"
-            
+
             # Check if container is already stopped
             if target_container.status in ['exited', 'dead']:
                 # Start instead of restart
@@ -302,20 +301,20 @@ class DockerOps:
                     return True, f"Container {container} started successfully"
                 else:
                     return False, f"Failed to start container: {stderr}"
-            
+
             # Restart the container
             success, stdout, stderr = self._run_docker_command(['restart', container], timeout=60)
-            
+
             if success:
                 return True, f"Container {container} restarted successfully"
             else:
                 return False, f"Failed to restart container: {stderr}"
-        
+
         finally:
             # Always release the lock
             self.container_locks.release(container)
-    
-    def get_container_stats(self, container: Optional[str] = None) -> List[ContainerStats]:
+
+    def get_container_stats(self, container: str | None = None) -> list[ContainerStats]:
         """
         Get container resource statistics.
         
@@ -327,27 +326,27 @@ class DockerOps:
         """
         if not self.docker_available:
             return []
-        
+
         cmd = ['stats', '--no-stream', '--format', '{{json .}}']
-        
+
         if container:
             cmd.append(container)
-        
+
         success, stdout, stderr = self._run_docker_command(cmd, timeout=20)
         if not success:
             return []
-        
+
         stats = []
         for line in stdout.strip().split('\n'):
             if line:
                 try:
                     data = json.loads(line)
-                    
+
                     # Parse memory usage
                     memory_usage = 0
                     memory_limit = 0
                     memory_percent = 0.0
-                    
+
                     if 'MemUsage' in data:
                         mem_parts = data['MemUsage'].split(' / ')
                         if len(mem_parts) == 2:
@@ -355,7 +354,7 @@ class DockerOps:
                             memory_limit = self._parse_bytes(mem_parts[1])
                             if memory_limit > 0:
                                 memory_percent = (memory_usage / memory_limit) * 100
-                    
+
                     # Parse network I/O
                     network_rx = 0
                     network_tx = 0
@@ -364,7 +363,7 @@ class DockerOps:
                         if len(net_parts) == 2:
                             network_rx = self._parse_bytes(net_parts[0])
                             network_tx = self._parse_bytes(net_parts[1])
-                    
+
                     # Parse block I/O
                     block_read = 0
                     block_write = 0
@@ -373,7 +372,7 @@ class DockerOps:
                         if len(block_parts) == 2:
                             block_read = self._parse_bytes(block_parts[0])
                             block_write = self._parse_bytes(block_parts[1])
-                    
+
                     container_stats = ContainerStats(
                         container_id=data.get('Container', '')[:12],
                         name=data.get('Name', ''),
@@ -387,32 +386,32 @@ class DockerOps:
                         block_write=block_write,
                         pids=int(data.get('PIDs', 0))
                     )
-                    
+
                     stats.append(container_stats)
-                    
+
                 except (json.JSONDecodeError, ValueError, KeyError):
                     continue
-        
+
         return stats
-    
+
     def _parse_bytes(self, byte_str: str) -> int:
         """Parse byte string with units (e.g., '1.5GB') to integer bytes."""
         byte_str = byte_str.strip()
         if not byte_str:
             return 0
-        
+
         # Remove any non-alphanumeric characters except decimal point
         import re
         clean_str = re.sub(r'[^0-9.a-zA-Z]', '', byte_str)
-        
+
         # Extract number and unit
         number_match = re.match(r'([\d.]+)([a-zA-Z]*)', clean_str)
         if not number_match:
             return 0
-        
+
         number = float(number_match.group(1))
         unit = number_match.group(2).upper()
-        
+
         # Convert to bytes
         multipliers = {
             '': 1,
@@ -426,34 +425,34 @@ class DockerOps:
             'G': 1024**3,
             'T': 1024**4
         }
-        
+
         return int(number * multipliers.get(unit, 1))
-    
-    def get_docker_system_info(self) -> Dict[str, Any]:
+
+    def get_docker_system_info(self) -> dict[str, Any]:
         """Get Docker system information."""
         if not self.docker_available:
             return {"error": "Docker not available"}
-        
+
         success, stdout, stderr = self._run_docker_command(['system', 'df', '--format', 'json'])
         if not success:
             return {"error": stderr}
-        
+
         try:
             data = json.loads(stdout)
             return data
         except json.JSONDecodeError:
             return {"error": "Failed to parse Docker system info"}
-    
-    def format_container_list(self, containers: List[ContainerInfo]) -> str:
+
+    def format_container_list(self, containers: list[ContainerInfo]) -> str:
         """Format container list for display."""
         if not containers:
             return "No containers found"
-        
+
         lines = ["**🐳 Docker Containers**\n"]
-        
+
         for container in containers:
             status_emoji = "🟢" if container.status == "running" else "🔴"
-            
+
             # Format ports
             port_info = ""
             if container.ports:
@@ -464,23 +463,23 @@ class DockerOps:
                     else:
                         port_mappings.append(port['container_port'])
                 port_info = f" • Ports: {', '.join(port_mappings)}"
-            
+
             lines.append(
                 f"{status_emoji} **{container.name}**\n"
                 f"   • ID: `{container.container_id}`\n"
                 f"   • Image: {container.image}\n"
                 f"   • Status: {container.status}{port_info}\n"
             )
-        
+
         return "\n".join(lines)
-    
-    def format_container_stats(self, stats: List[ContainerStats]) -> str:
+
+    def format_container_stats(self, stats: list[ContainerStats]) -> str:
         """Format container statistics for display."""
         if not stats:
             return "No container statistics available"
-        
+
         lines = ["**📊 Container Statistics**\n"]
-        
+
         for stat in stats:
             lines.append(
                 f"**{stat.name}**\n"
@@ -490,9 +489,9 @@ class DockerOps:
                 f"   • Network: ↓{self._format_bytes(stat.network_rx)} ↑{self._format_bytes(stat.network_tx)}\n"
                 f"   • PIDs: {stat.pids}\n"
             )
-        
+
         return "\n".join(lines)
-    
+
     def _format_bytes(self, bytes_value: int) -> str:
         """Format bytes in human readable format."""
         for unit in ['B', 'KB', 'MB', 'GB', 'TB']:

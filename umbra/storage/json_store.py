@@ -64,7 +64,7 @@ class JSONStore:
                 self._initialized = True
                 return True
 
-            except Exception as e:
+            except Exception:
                 logger.exception("Failed to initialize JSON store",
                            extra={"file_path": str(self.file_path)})
                 return False
@@ -101,12 +101,12 @@ class JSONStore:
 
                 return data
 
-            except json.JSONDecodeError as e:
+            except json.JSONDecodeError:
                 logger.exception("Invalid JSON in store file",
                            extra={"file_path": str(self.file_path)})
                 # Return empty dict for corrupted file
                 return {}
-            except Exception as e:
+            except Exception:
                 logger.exception("Failed to read from JSON store",
                            extra={"file_path": str(self.file_path)})
                 raise
@@ -179,7 +179,7 @@ class JSONStore:
                     pass
                 raise e
 
-        except Exception as e:
+        except Exception:
             logger.exception("Atomic write failed",
                        file_path=str(self.file_path),
                        )
@@ -230,7 +230,7 @@ class JSONStore:
 
             return await self.write(data)
 
-        except Exception as e:
+        except Exception:
             logger.exception("Failed to append event",
                        file_path=str(self.file_path),
                        )
@@ -265,7 +265,7 @@ class JSONStore:
 
             return await self.write(data)
 
-        except Exception as e:
+        except Exception:
             logger.exception("Failed to update field",
                        file_path=str(self.file_path),
                        field_path=field_path,
@@ -296,7 +296,7 @@ class JSONStore:
 
             return current
 
-        except Exception as e:
+        except Exception:
             logger.exception("Failed to get field",
                        file_path=str(self.file_path),
                        field_path=field_path,

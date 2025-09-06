@@ -9,11 +9,13 @@ Provides comprehensive system monitoring using psutil:
 - Process monitoring
 - System uptime and boot time
 """
-import psutil
 import time
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass
+from datetime import datetime, timedelta
+from typing import Any
+
+import psutil
+
 
 @dataclass
 class SystemMetrics:
@@ -21,7 +23,7 @@ class SystemMetrics:
     timestamp: float
     cpu_percent: float
     cpu_count: int
-    load_average: Tuple[float, float, float]
+    load_average: tuple[float, float, float]
     memory_total: int
     memory_available: int
     memory_percent: float
@@ -45,15 +47,15 @@ class ProcessInfo:
     memory_rss: int
     status: str
     create_time: float
-    cmdline: List[str]
+    cmdline: list[str]
 
 class SystemOps:
     """System operations and monitoring using psutil."""
-    
+
     def __init__(self):
         self.last_cpu_check = 0
         self.cpu_interval = 1.0  # seconds
-    
+
     def check_system(self) -> SystemMetrics:
         """
         Get comprehensive system status.
@@ -64,25 +66,25 @@ class SystemOps:
         # CPU information
         cpu_percent = psutil.cpu_percent(interval=self.cpu_interval)
         cpu_count = psutil.cpu_count(logical=True)
-        
+
         # Load averages (Unix-like systems)
         try:
             load_avg = psutil.getloadavg()
         except AttributeError:
             # Windows doesn't have load average
             load_avg = (0.0, 0.0, 0.0)
-        
+
         # Memory information
         memory = psutil.virtual_memory()
         swap = psutil.swap_memory()
-        
+
         # Disk information (root filesystem)
         disk = psutil.disk_usage('/')
-        
+
         # System boot time and uptime
         boot_time = psutil.boot_time()
         uptime_seconds = time.time() - boot_time
-        
+
         return SystemMetrics(
             timestamp=time.time(),
             cpu_percent=cpu_percent,
@@ -101,14 +103,14 @@ class SystemOps:
             boot_time=boot_time,
             uptime_seconds=uptime_seconds
         )
-    
-    def get_detailed_cpu_info(self) -> Dict[str, Any]:
+
+    def get_detailed_cpu_info(self) -> dict[str, Any]:
         """Get detailed CPU information."""
         try:
             cpu_times = psutil.cpu_times()
             cpu_percent_per_core = psutil.cpu_percent(interval=1, percpu=True)
             cpu_freq = psutil.cpu_freq()
-            
+
             return {
                 "logical_cores": psutil.cpu_count(logical=True),
                 "physical_cores": psutil.cpu_count(logical=False),
@@ -126,13 +128,13 @@ class SystemOps:
             }
         except Exception as e:
             return {"error": str(e)}
-    
-    def get_memory_details(self) -> Dict[str, Any]:
+
+    def get_memory_details(self) -> dict[str, Any]:
         """Get detailed memory information."""
         try:
             memory = psutil.virtual_memory()
             swap = psutil.swap_memory()
-            
+
             return {
                 "virtual_memory": {
                     "total": memory.total,
@@ -157,13 +159,13 @@ class SystemOps:
             }
         except Exception as e:
             return {"error": str(e)}
-    
-    def get_disk_info(self, path: str = '/') -> Dict[str, Any]:
+
+    def get_disk_info(self, path: str = '/') -> dict[str, Any]:
         """Get disk usage and I/O information."""
         try:
             usage = psutil.disk_usage(path)
             io_counters = psutil.disk_io_counters()
-            
+
             result = {
                 "usage": {
                     "total": usage.total,
@@ -173,7 +175,7 @@ class SystemOps:
                 },
                 "partitions": []
             }
-            
+
             # Get all mounted partitions
             partitions = psutil.disk_partitions()
             for partition in partitions:
@@ -191,7 +193,7 @@ class SystemOps:
                 except PermissionError:
                     # Skip partitions we can't access
                     continue
-            
+
             # Add I/O counters if available
             if io_counters:
                 result["io_counters"] = {
@@ -202,17 +204,17 @@ class SystemOps:
                     "read_time": io_counters.read_time,
                     "write_time": io_counters.write_time,
                 }
-            
+
             return result
         except Exception as e:
             return {"error": str(e)}
-    
-    def get_network_info(self) -> Dict[str, Any]:
+
+    def get_network_info(self) -> dict[str, Any]:
         """Get network statistics and interface information."""
         try:
             io_counters = psutil.net_io_counters(pernic=True)
             connections = psutil.net_connections()
-            
+
             result = {
                 "interfaces": {},
                 "connections": {
@@ -221,7 +223,7 @@ class SystemOps:
                     "established": len([c for c in connections if c.status == 'ESTABLISHED']),
                 }
             }
-            
+
             # Interface statistics
             for interface, stats in io_counters.items():
                 result["interfaces"][interface] = {
@@ -234,12 +236,12 @@ class SystemOps:
                     "dropin": stats.dropin,
                     "dropout": stats.dropout,
                 }
-            
+
             return result
         except Exception as e:
             return {"error": str(e)}
-    
-    def get_top_processes(self, limit: int = 10, sort_by: str = 'cpu') -> List[ProcessInfo]:
+
+    def get_top_processes(self, limit: int = 10, sort_by: str = 'cpu') -> list[ProcessInfo]:
         """
         Get top processes by CPU or memory usage.
         
@@ -251,16 +253,16 @@ class SystemOps:
             List of ProcessInfo objects
         """
         processes = []
-        
-        for proc in psutil.process_iter(['pid', 'name', 'cpu_percent', 'memory_percent', 
+
+        for proc in psutil.process_iter(['pid', 'name', 'cpu_percent', 'memory_percent',
                                         'memory_info', 'status', 'create_time', 'cmdline']):
             try:
                 pinfo = proc.info
-                
+
                 # Skip kernel threads and processes with no CPU/memory usage
                 if pinfo['cpu_percent'] == 0 and pinfo['memory_percent'] == 0:
                     continue
-                
+
                 process_info = ProcessInfo(
                     pid=pinfo['pid'],
                     name=pinfo['name'] or 'Unknown',
@@ -271,31 +273,31 @@ class SystemOps:
                     create_time=pinfo['create_time'],
                     cmdline=pinfo['cmdline'] or []
                 )
-                
+
                 processes.append(process_info)
-                
+
             except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                 continue
-        
+
         # Sort processes
         if sort_by == 'memory':
             processes.sort(key=lambda x: x.memory_percent, reverse=True)
         else:  # default to CPU
             processes.sort(key=lambda x: x.cpu_percent, reverse=True)
-        
+
         return processes[:limit]
-    
-    def get_system_uptime(self) -> Dict[str, Any]:
+
+    def get_system_uptime(self) -> dict[str, Any]:
         """Get system uptime information."""
         boot_time = psutil.boot_time()
         uptime_seconds = time.time() - boot_time
-        
+
         # Convert to human readable format
         days = int(uptime_seconds // 86400)
         hours = int((uptime_seconds % 86400) // 3600)
         minutes = int((uptime_seconds % 3600) // 60)
         seconds = int(uptime_seconds % 60)
-        
+
         return {
             "boot_time": boot_time,
             "boot_time_iso": datetime.fromtimestamp(boot_time).isoformat(),
@@ -308,8 +310,8 @@ class SystemOps:
                 "seconds": seconds
             }
         }
-    
-    def get_system_users(self) -> List[Dict[str, Any]]:
+
+    def get_system_users(self) -> list[dict[str, Any]]:
         """Get logged in users."""
         try:
             users = psutil.users()
@@ -325,7 +327,7 @@ class SystemOps:
             ]
         except Exception as e:
             return [{"error": str(e)}]
-    
+
     def format_bytes(self, bytes_value: int) -> str:
         """Format bytes in human readable format."""
         for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
@@ -333,11 +335,11 @@ class SystemOps:
                 return f"{bytes_value:.1f} {unit}"
             bytes_value /= 1024.0
         return f"{bytes_value:.1f} PB"
-    
+
     def format_system_summary(self, metrics: SystemMetrics) -> str:
         """Format system metrics for display."""
         uptime_str = str(timedelta(seconds=int(metrics.uptime_seconds)))
-        
+
         return f"""**🖥️ System Status**
 
 **CPU:** {metrics.cpu_percent:.1f}% ({metrics.cpu_count} cores)
@@ -346,12 +348,12 @@ class SystemOps:
 **Swap:** {metrics.swap_percent:.1f}% ({self.format_bytes(metrics.swap_total - metrics.swap_used)} free)
 **Disk:** {metrics.disk_percent:.1f}% ({self.format_bytes(metrics.disk_free)} free)
 **Uptime:** {uptime_str}"""
-    
-    def get_health_status(self, metrics: SystemMetrics) -> Dict[str, Any]:
+
+    def get_health_status(self, metrics: SystemMetrics) -> dict[str, Any]:
         """Determine system health based on metrics."""
         health_score = 100
         issues = []
-        
+
         # CPU health
         if metrics.cpu_percent > 90:
             health_score -= 20
@@ -359,7 +361,7 @@ class SystemOps:
         elif metrics.cpu_percent > 80:
             health_score -= 10
             issues.append("Elevated CPU usage")
-        
+
         # Memory health
         if metrics.memory_percent > 95:
             health_score -= 25
@@ -367,7 +369,7 @@ class SystemOps:
         elif metrics.memory_percent > 85:
             health_score -= 15
             issues.append("High memory usage")
-        
+
         # Disk health
         if metrics.disk_percent > 95:
             health_score -= 30
@@ -375,17 +377,17 @@ class SystemOps:
         elif metrics.disk_percent > 85:
             health_score -= 20
             issues.append("High disk usage")
-        
+
         # Load average health (relative to CPU cores)
         if metrics.load_average[0] > metrics.cpu_count * 2:
             health_score -= 15
             issues.append("High system load")
-        
+
         # Swap usage
         if metrics.swap_percent > 50:
             health_score -= 10
             issues.append("High swap usage")
-        
+
         # Determine overall status
         if health_score >= 90:
             status = "excellent"
@@ -395,7 +397,7 @@ class SystemOps:
             status = "warning"
         else:
             status = "critical"
-        
+
         return {
             "status": status,
             "health_score": max(0, health_score),

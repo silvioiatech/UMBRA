@@ -5,11 +5,10 @@ Generates and manages workflow documentation through AI-powered sticky notes
 that provide context and explanations without modifying workflow structure.
 """
 
-import json
 import logging
-from typing import Any, Dict, List, Optional
-from dataclasses import dataclass
 import time
+from dataclasses import dataclass
+from typing import Any
 
 from ...ai.agent import UmbraAIAgent
 from ...core.config import UmbraConfig
@@ -31,31 +30,31 @@ class StickyNote:
 @dataclass
 class StickyNotesResult:
     """Result of sticky notes generation"""
-    workflow_id: Optional[str]
+    workflow_id: str | None
     notes_count: int
-    notes: List[StickyNote]
+    notes: list[StickyNote]
     workflow_summary: str
     tokens_used: int
     generation_time: float
 
 class StickyNotesManager:
     """Manages AI-generated documentation for workflows"""
-    
+
     def __init__(self, ai_agent: UmbraAIAgent, config: UmbraConfig):
         self.ai_agent = ai_agent
         self.config = config
-        
+
         # Configuration
         self.max_notes_per_workflow = config.get("PROD_MAX_STICKY_NOTES", 50)
         self.note_categories = ["explanation", "warning", "tip", "example", "best_practice"]
-        
+
         logger.info("Sticky notes manager initialized")
-    
-    async def generate_sticky_notes(self, workflow_id: Optional[str] = None, workflow_json: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+
+    async def generate_sticky_notes(self, workflow_id: str | None = None, workflow_json: dict[str, Any] | None = None) -> dict[str, Any]:
         """Generate sticky notes for workflow"""
         try:
             start_time = time.time()
-            
+
             # Get workflow data
             if workflow_json:
                 workflow = workflow_json
@@ -65,18 +64,18 @@ class StickyNotesManager:
                 raise Exception("workflow_json must be provided when workflow_id is not available")
             else:
                 raise Exception("Either workflow_id or workflow_json must be provided")
-            
+
             # Generate comprehensive notes
             notes = await self._generate_comprehensive_notes(workflow)
-            
+
             # Generate workflow summary
             summary = await self._generate_workflow_summary(workflow, notes)
-            
+
             # Apply notes to workflow
             annotated_workflow = self._apply_notes_to_workflow(workflow, notes)
-            
+
             generation_time = time.time() - start_time
-            
+
             result = StickyNotesResult(
                 workflow_id=workflow_id,
                 notes_count=len(notes),
@@ -85,7 +84,7 @@ class StickyNotesManager:
                 tokens_used=sum(note.content.count(' ') * 1.3 for note in notes),  # Rough estimate
                 generation_time=generation_time
             )
-            
+
             return {
                 "workflow": annotated_workflow,
                 "notes_count": result.notes_count,
@@ -95,7 +94,7 @@ class StickyNotesManager:
                 "tokens_used": int(result.tokens_used),
                 "status": "success"
             }
-            
+
         except Exception as e:
             logger.error(f"Sticky notes generation failed: {e}")
             return {
@@ -103,37 +102,37 @@ class StickyNotesManager:
                 "workflow_id": workflow_id,
                 "status": "failed"
             }
-    
-    async def _generate_comprehensive_notes(self, workflow: Dict[str, Any]) -> List[StickyNote]:
+
+    async def _generate_comprehensive_notes(self, workflow: dict[str, Any]) -> list[StickyNote]:
         """Generate comprehensive sticky notes for workflow"""
         notes = []
-        
+
         # Generate workflow-level notes
         workflow_notes = await self._generate_workflow_level_notes(workflow)
         notes.extend(workflow_notes)
-        
+
         # Generate node-level notes
         nodes = workflow.get("nodes", [])
         for node in nodes:
             node_notes = await self._generate_node_level_notes(node, workflow)
             notes.extend(node_notes)
-        
+
         # Generate connection-level notes
         connections = workflow.get("connections", {})
         connection_notes = await self._generate_connection_level_notes(connections, nodes)
         notes.extend(connection_notes)
-        
+
         # Limit total notes
         if len(notes) > self.max_notes_per_workflow:
             # Prioritize by importance
             notes = self._prioritize_notes(notes)[:self.max_notes_per_workflow]
-        
+
         return notes
-    
-    async def _generate_workflow_level_notes(self, workflow: Dict[str, Any]) -> List[StickyNote]:
+
+    async def _generate_workflow_level_notes(self, workflow: dict[str, Any]) -> list[StickyNote]:
         """Generate workflow-level documentation notes"""
         notes = []
-        
+
         # Workflow overview note
         overview_prompt = f"""
         Analyze this n8n workflow and provide a clear overview explanation.
@@ -151,7 +150,7 @@ class StickyNotesManager:
         
         Keep it accessible for both technical and non-technical users.
         """
-        
+
         try:
             overview_response = await self.ai_agent.generate_response(
                 overview_prompt,
@@ -159,7 +158,7 @@ class StickyNotesManager:
                 response_format="text",
                 max_tokens=200
             )
-            
+
             notes.append(StickyNote(
                 id=f"workflow_overview_{int(time.time())}",
                 type="workflow",
@@ -169,77 +168,77 @@ class StickyNotesManager:
                 category="explanation",
                 created_at=time.time()
             ))
-            
+
         except Exception as e:
             logger.warning(f"Failed to generate workflow overview: {e}")
-        
+
         # Trigger analysis note
-        trigger_nodes = [node for node in workflow.get("nodes", []) 
-                        if "trigger" in node.get("type", "").lower() or 
+        trigger_nodes = [node for node in workflow.get("nodes", [])
+                        if "trigger" in node.get("type", "").lower() or
                            "webhook" in node.get("type", "").lower()]
-        
+
         if trigger_nodes:
             trigger_note = self._generate_trigger_analysis_note(trigger_nodes)
             if trigger_note:
                 notes.append(trigger_note)
-        
+
         # Security considerations note
         security_note = self._generate_security_considerations_note(workflow)
         if security_note:
             notes.append(security_note)
-        
+
         return notes
-    
-    async def _generate_node_level_notes(self, node: Dict[str, Any], workflow: Dict[str, Any]) -> List[StickyNote]:
+
+    async def _generate_node_level_notes(self, node: dict[str, Any], workflow: dict[str, Any]) -> list[StickyNote]:
         """Generate notes for individual nodes"""
         notes = []
         node_id = node.get("id", "unknown")
         node_type = node.get("type", "unknown")
         node_name = node.get("name", node_id)
-        
+
         # Generate explanation note for complex nodes
         if self._is_complex_node(node):
             explanation_note = await self._generate_node_explanation(node)
             if explanation_note:
                 notes.append(explanation_note)
-        
+
         # Generate parameter guidance notes
         parameters = node.get("parameters", {})
         if parameters:
             param_notes = self._generate_parameter_notes(node_id, node_name, parameters)
             notes.extend(param_notes)
-        
+
         # Generate best practice notes
         best_practice_note = self._generate_best_practice_note(node)
         if best_practice_note:
             notes.append(best_practice_note)
-        
+
         # Generate warning notes for potentially problematic configurations
         warning_notes = self._generate_warning_notes(node)
         notes.extend(warning_notes)
-        
+
         return notes
-    
-    async def _generate_connection_level_notes(self, connections: Dict[str, Any], nodes: List[Dict[str, Any]]) -> List[StickyNote]:
+
+    async def _generate_connection_level_notes(self, connections: dict[str, Any], nodes: list[dict[str, Any]]) -> list[StickyNote]:
         """Generate notes about workflow connections and data flow"""
         notes = []
-        
+
         # Create node lookup
         node_lookup = {node.get("id"): node for node in nodes}
-        
+
         # Analyze complex connection patterns
         for source_id, connection_data in connections.items():
             source_node = node_lookup.get(source_id)
             if not source_node:
                 continue
-            
+
             # Check for complex routing patterns
             total_connections = sum(
                 len(output_list)
                 for outputs in connection_data.values()
                 for output_list in outputs
             )
-            
+
             if total_connections > 3:  # Multiple outputs
                 note = StickyNote(
                     id=f"connection_complex_{source_id}_{int(time.time())}",
@@ -253,29 +252,29 @@ class StickyNotesManager:
                     created_at=time.time()
                 )
                 notes.append(note)
-        
+
         return notes
-    
-    def _is_complex_node(self, node: Dict[str, Any]) -> bool:
+
+    def _is_complex_node(self, node: dict[str, Any]) -> bool:
         """Determine if node is complex enough to need explanation"""
         node_type = node.get("type", "").lower()
-        
+
         # Node types that typically need explanation
         complex_types = [
             "code", "function", "javascript", "python",
             "if", "switch", "merge", "aggregate",
             "split", "itemlists", "json", "xml"
         ]
-        
+
         return any(ctype in node_type for ctype in complex_types)
-    
-    async def _generate_node_explanation(self, node: Dict[str, Any]) -> Optional[StickyNote]:
+
+    async def _generate_node_explanation(self, node: dict[str, Any]) -> StickyNote | None:
         """Generate explanation note for complex node"""
         node_id = node.get("id", "unknown")
         node_type = node.get("type", "unknown")
         node_name = node.get("name", node_id)
         parameters = node.get("parameters", {})
-        
+
         explanation_prompt = f"""
         Explain what this n8n node does in simple terms.
         
@@ -290,7 +289,7 @@ class StickyNotesManager:
         
         Focus on practical understanding, not technical implementation details.
         """
-        
+
         try:
             explanation = await self.ai_agent.generate_response(
                 explanation_prompt,
@@ -298,7 +297,7 @@ class StickyNotesManager:
                 response_format="text",
                 max_tokens=150
             )
-            
+
             return StickyNote(
                 id=f"node_explanation_{node_id}_{int(time.time())}",
                 type="node",
@@ -308,15 +307,15 @@ class StickyNotesManager:
                 category="explanation",
                 created_at=time.time()
             )
-            
+
         except Exception as e:
             logger.warning(f"Failed to generate node explanation for {node_id}: {e}")
             return None
-    
-    def _generate_parameter_notes(self, node_id: str, node_name: str, parameters: Dict[str, Any]) -> List[StickyNote]:
+
+    def _generate_parameter_notes(self, node_id: str, node_name: str, parameters: dict[str, Any]) -> list[StickyNote]:
         """Generate notes about important parameters"""
         notes = []
-        
+
         # Look for parameters that commonly need explanation
         important_params = {
             "code": "Custom code that processes input data",
@@ -327,7 +326,7 @@ class StickyNotesManager:
             "timeout": "Maximum time to wait for response",
             "retries": "Number of retry attempts on failure"
         }
-        
+
         for param_key, param_value in parameters.items():
             if param_key.lower() in important_params:
                 note = StickyNote(
@@ -340,15 +339,15 @@ class StickyNotesManager:
                     created_at=time.time()
                 )
                 notes.append(note)
-        
+
         return notes
-    
-    def _generate_best_practice_note(self, node: Dict[str, Any]) -> Optional[StickyNote]:
+
+    def _generate_best_practice_note(self, node: dict[str, Any]) -> StickyNote | None:
         """Generate best practice note for node"""
         node_id = node.get("id", "unknown")
         node_type = node.get("type", "").lower()
         node_name = node.get("name", node_id)
-        
+
         # Best practices by node type
         best_practices = {
             "http": "Set appropriate timeouts and handle HTTP errors gracefully. Consider rate limiting for external APIs.",
@@ -358,7 +357,7 @@ class StickyNotesManager:
             "if": "Make conditions explicit and handle edge cases. Consider what happens when conditions are not met.",
             "switch": "Ensure all possible cases are handled. Add a default case for unexpected values."
         }
-        
+
         for pattern, practice in best_practices.items():
             if pattern in node_type:
                 return StickyNote(
@@ -370,19 +369,19 @@ class StickyNotesManager:
                     category="best_practice",
                     created_at=time.time()
                 )
-        
+
         return None
-    
-    def _generate_warning_notes(self, node: Dict[str, Any]) -> List[StickyNote]:
+
+    def _generate_warning_notes(self, node: dict[str, Any]) -> list[StickyNote]:
         """Generate warning notes for potential issues"""
         notes = []
         node_id = node.get("id", "unknown")
         node_type = node.get("type", "").lower()
         node_name = node.get("name", node_id)
         parameters = node.get("parameters", {})
-        
+
         # Check for common issues
-        
+
         # Missing error handling
         if "http" in node_type and not parameters.get("continueOnFail"):
             notes.append(StickyNote(
@@ -394,7 +393,7 @@ class StickyNotesManager:
                 category="warning",
                 created_at=time.time()
             ))
-        
+
         # Missing timeout
         if "http" in node_type and not parameters.get("timeout"):
             notes.append(StickyNote(
@@ -406,7 +405,7 @@ class StickyNotesManager:
                 category="warning",
                 created_at=time.time()
             ))
-        
+
         # Hardcoded values that should be dynamic
         for param_key, param_value in parameters.items():
             if isinstance(param_value, str) and param_value.startswith("http") and "example.com" in param_value:
@@ -419,16 +418,16 @@ class StickyNotesManager:
                     category="warning",
                     created_at=time.time()
                 ))
-        
+
         return notes
-    
-    def _generate_trigger_analysis_note(self, trigger_nodes: List[Dict[str, Any]]) -> Optional[StickyNote]:
+
+    def _generate_trigger_analysis_note(self, trigger_nodes: list[dict[str, Any]]) -> StickyNote | None:
         """Generate note analyzing workflow triggers"""
         if not trigger_nodes:
             return None
-        
+
         trigger_types = [node.get("type", "unknown") for node in trigger_nodes]
-        
+
         if len(trigger_nodes) == 1:
             trigger_type = trigger_types[0]
             if "webhook" in trigger_type.lower():
@@ -441,7 +440,7 @@ class StickyNotesManager:
                 content = f"This workflow is triggered by {trigger_type}. Review trigger configuration for your use case."
         else:
             content = f"This workflow has {len(trigger_nodes)} triggers: {', '.join(set(trigger_types))}. Multiple triggers can provide flexibility but may complicate testing and monitoring."
-        
+
         return StickyNote(
             id=f"trigger_analysis_{int(time.time())}",
             type="workflow",
@@ -451,19 +450,19 @@ class StickyNotesManager:
             category="explanation",
             created_at=time.time()
         )
-    
-    def _generate_security_considerations_note(self, workflow: Dict[str, Any]) -> Optional[StickyNote]:
+
+    def _generate_security_considerations_note(self, workflow: dict[str, Any]) -> StickyNote | None:
         """Generate security considerations note"""
         nodes = workflow.get("nodes", [])
-        
+
         # Check for security-relevant patterns
         has_http_nodes = any("http" in node.get("type", "").lower() for node in nodes)
         has_code_nodes = any("code" in node.get("type", "").lower() for node in nodes)
         has_webhook_nodes = any("webhook" in node.get("type", "").lower() for node in nodes)
         has_credentials = any("credentials" in node for node in nodes)
-        
+
         security_notes = []
-        
+
         if has_webhook_nodes:
             security_notes.append("webhook endpoints should be secured")
         if has_code_nodes:
@@ -472,10 +471,10 @@ class StickyNotesManager:
             security_notes.append("external API calls should use HTTPS")
         if has_credentials:
             security_notes.append("credentials should be properly configured")
-        
+
         if security_notes:
             content = f"Security considerations: {', '.join(security_notes)}. Review these aspects before production deployment."
-            
+
             return StickyNote(
                 id=f"security_considerations_{int(time.time())}",
                 type="workflow",
@@ -485,10 +484,10 @@ class StickyNotesManager:
                 category="warning",
                 created_at=time.time()
             )
-        
+
         return None
-    
-    def _prioritize_notes(self, notes: List[StickyNote]) -> List[StickyNote]:
+
+    def _prioritize_notes(self, notes: list[StickyNote]) -> list[StickyNote]:
         """Prioritize notes by importance"""
         priority_order = {
             "warning": 1,
@@ -497,25 +496,25 @@ class StickyNotesManager:
             "tip": 4,
             "example": 5
         }
-        
+
         return sorted(notes, key=lambda note: priority_order.get(note.category, 6))
-    
-    def _apply_notes_to_workflow(self, workflow: Dict[str, Any], notes: List[StickyNote]) -> Dict[str, Any]:
+
+    def _apply_notes_to_workflow(self, workflow: dict[str, Any], notes: list[StickyNote]) -> dict[str, Any]:
         """Apply sticky notes to workflow metadata without modifying structure"""
         annotated_workflow = workflow.copy()
-        
+
         # Add notes to workflow metadata
         annotated_workflow.setdefault("meta", {})
         annotated_workflow["meta"]["x_sticky_notes"] = [note.__dict__ for note in notes]
         annotated_workflow["meta"]["x_notes_generated"] = time.time()
         annotated_workflow["meta"]["x_notes_count"] = len(notes)
-        
+
         # Add summary note to each node (safe metadata only)
         nodes = annotated_workflow.get("nodes", [])
         for node in nodes:
             node_id = node.get("id")
             node_notes = [note for note in notes if note.target == node_id]
-            
+
             if node_notes:
                 # Add notes to node parameters as safe metadata
                 node.setdefault("parameters", {})
@@ -527,14 +526,14 @@ class StickyNotesManager:
                     }
                     for note in node_notes
                 ]
-        
+
         return annotated_workflow
-    
-    async def _generate_workflow_summary(self, workflow: Dict[str, Any], notes: List[StickyNote]) -> str:
+
+    async def _generate_workflow_summary(self, workflow: dict[str, Any], notes: list[StickyNote]) -> str:
         """Generate comprehensive workflow summary"""
         workflow_name = workflow.get("name", "Unnamed Workflow")
         nodes = workflow.get("nodes", [])
-        
+
         summary_prompt = f"""
         Create a comprehensive but concise summary of this n8n workflow.
         
@@ -553,7 +552,7 @@ class StickyNotesManager:
         
         Make it suitable for technical documentation.
         """
-        
+
         try:
             summary = await self.ai_agent.generate_response(
                 summary_prompt,
@@ -561,9 +560,9 @@ class StickyNotesManager:
                 response_format="text",
                 max_tokens=300
             )
-            
+
             return summary.strip()
-            
+
         except Exception as e:
             logger.warning(f"Failed to generate workflow summary: {e}")
             return f"Workflow '{workflow_name}' with {len(nodes)} nodes. {len(notes)} documentation notes generated."

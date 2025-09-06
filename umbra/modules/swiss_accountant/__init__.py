@@ -52,66 +52,37 @@ __author__ = "Swiss Accountant Development Team"
 __license__ = "MIT"
 
 # Main exports
+# CLI
+from .cli import SwissAccountantCLI
+
+# Database
+from .database.manager import DatabaseManager, create_database_manager
+
+# Export
+from .exports.csv_excel import ExportFormat, ExportManager, create_export_manager
+
+# Document processing
+from .ingest.ocr import OCRProcessor, create_ocr_processor
+from .ingest.parsers import DocumentParser, DocumentType, create_document_parser
+from .ingest.statements import StatementFormat, StatementParser, create_statement_parser
 from .main import (
     SwissAccountant,
     create_swiss_accountant,
     get_default_config,
-    load_config_from_file
+    load_config_from_file,
 )
-
-# Database
-from .database.manager import (
-    DatabaseManager,
-    create_database_manager
-)
-
-# Document processing
-from .ingest.ocr import (
-    OCRProcessor,
-    create_ocr_processor
-)
-
-from .ingest.parsers import (
-    DocumentParser,
-    DocumentType,
-    create_document_parser
-)
-
-from .ingest.statements import (
-    StatementParser,
-    StatementFormat,
-    create_statement_parser
-)
+from .normalize.categories import CategoryMapper, DeductionCategory, create_category_mapper
 
 # Normalization
-from .normalize.merchants import (
-    MerchantNormalizer,
-    create_merchant_normalizer
-)
-
-from .normalize.categories import (
-    CategoryMapper,
-    DeductionCategory,
-    create_category_mapper
-)
+from .normalize.merchants import MerchantNormalizer, create_merchant_normalizer
 
 # Reconciliation
 from .reconcile.matcher import (
     ExpenseTransactionMatcher,
-    MatchType,
     MatchStrategy,
-    create_expense_transaction_matcher
+    MatchType,
+    create_expense_transaction_matcher,
 )
-
-# Export
-from .exports.csv_excel import (
-    ExportManager,
-    ExportFormat,
-    create_export_manager
-)
-
-# CLI
-from .cli import SwissAccountantCLI
 
 # All available classes and functions
 __all__ = [
@@ -120,11 +91,11 @@ __all__ = [
     'create_swiss_accountant',
     'get_default_config',
     'load_config_from_file',
-    
+
     # Database
     'DatabaseManager',
     'create_database_manager',
-    
+
     # Document processing
     'OCRProcessor',
     'create_ocr_processor',
@@ -134,25 +105,25 @@ __all__ = [
     'StatementParser',
     'StatementFormat',
     'create_statement_parser',
-    
+
     # Normalization
     'MerchantNormalizer',
     'create_merchant_normalizer',
     'CategoryMapper',
     'DeductionCategory',
     'create_category_mapper',
-    
+
     # Reconciliation
     'ExpenseTransactionMatcher',
     'MatchType',
     'MatchStrategy',
     'create_expense_transaction_matcher',
-    
+
     # Export
     'ExportManager',
     'ExportFormat',
     'create_export_manager',
-    
+
     # CLI
     'SwissAccountantCLI'
 ]
@@ -266,11 +237,11 @@ with open("tax_export_2024.xlsx", "wb") as f:
 def _initialize_module():
     """Initialize module with Swiss-specific settings."""
     import logging
-    
+
     # Setup module logger
     logger = logging.getLogger(__name__)
     logger.info(f"Swiss Accountant v{__version__} initialized")
-    
+
     # Log supported features
     logger.debug(f"Supported receipt formats: {SUPPORTED_RECEIPT_FORMATS}")
     logger.debug(f"Supported statement formats: {SUPPORTED_STATEMENT_FORMATS}")

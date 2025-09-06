@@ -5,7 +5,7 @@ Handles OCR, document parsing, and statement processing.
 
 from .ocr import OCRProcessor, create_ocr_processor
 from .parsers import DocumentParser, DocumentType, create_document_parser
-from .statements import StatementParser, StatementFormat, create_statement_parser
+from .statements import StatementFormat, StatementParser, create_statement_parser
 
 __all__ = [
     'OCRProcessor', 'create_ocr_processor',

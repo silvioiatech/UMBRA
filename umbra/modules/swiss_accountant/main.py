@@ -2,32 +2,31 @@
 Swiss Accountant Main Module
 Orchestrates all components for Swiss tax-compliant expense tracking and deduction optimization.
 """
-import os
-from typing import Dict, List, Optional, Tuple, Any, Union
-from decimal import Decimal
-from datetime import datetime, date
-from pathlib import Path
-import logging
 import json
+import logging
+import os
+from datetime import date, datetime
+from decimal import Decimal
+from typing import Any
 
 # Import all Swiss Accountant components
 from .database.manager import create_database_manager
+from .exports.csv_excel import create_export_manager
 from .ingest.ocr import create_ocr_processor
 from .ingest.parsers import create_document_parser
 from .ingest.statements import create_statement_parser
-from .normalize.merchants import create_merchant_normalizer
 from .normalize.categories import create_category_mapper
+from .normalize.merchants import create_merchant_normalizer
 from .reconcile.matcher import create_expense_transaction_matcher
-from .exports.csv_excel import create_export_manager
 
 
 class SwissAccountant:
     """Main Swiss Accountant class that orchestrates all functionality."""
-    
-    def __init__(self, 
+
+    def __init__(self,
                  db_path: str = None,
                  user_id: str = None,
-                 config: Dict[str, Any] = None):
+                 config: dict[str, Any] = None):
         """Initialize Swiss Accountant.
         
         Args:
@@ -37,17 +36,17 @@ class SwissAccountant:
         """
         self.user_id = user_id
         self.config = config or {}
-        
+
         # Setup logging
         self._setup_logging()
         self.logger = logging.getLogger(__name__)
-        
+
         # Initialize database
         if not db_path:
             db_path = self.config.get('database_path', 'swiss_accountant.db')
-        
+
         self.db = create_database_manager(db_path)
-        
+
         # Initialize all components
         self.ocr = create_ocr_processor()
         self.document_parser = create_document_parser()
@@ -56,14 +55,14 @@ class SwissAccountant:
         self.category_mapper = create_category_mapper(self.db)
         self.transaction_matcher = create_expense_transaction_matcher(self.db)
         self.export_manager = create_export_manager()
-        
+
         self.logger.info("Swiss Accountant initialized successfully")
-    
+
     def _setup_logging(self):
         """Setup logging configuration."""
         log_level = self.config.get('log_level', 'INFO')
         log_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-        
+
         logging.basicConfig(
             level=getattr(logging, log_level.upper()),
             format=log_format,
@@ -72,12 +71,12 @@ class SwissAccountant:
                 logging.FileHandler('swiss_accountant.log')
             ]
         )
-    
+
     # Document Processing Methods
-    
-    def process_receipt(self, 
+
+    def process_receipt(self,
                        file_path: str,
-                       user_id: str = None) -> Dict[str, Any]:
+                       user_id: str = None) -> dict[str, Any]:
         """Process a receipt image/PDF and extract expense data.
         
         Args:
@@ -91,30 +90,30 @@ class SwissAccountant:
             user_id = user_id or self.user_id
             if not user_id:
                 return {'success': False, 'error': 'User ID required'}
-            
+
             self.logger.info(f"Processing receipt: {file_path}")
-            
+
             # Store document
             doc_result = self.db.store_document(file_path, user_id)
             if not doc_result['success']:
                 return doc_result
-            
+
             doc_id = doc_result['document_id']
-            
+
             # Perform OCR
             ocr_result = self.ocr.extract_text_from_image(file_path)
             if not ocr_result['success']:
                 self.logger.error(f"OCR failed for {file_path}: {ocr_result.get('error')}")
                 return ocr_result
-            
+
             # Detect document type and parse
             detection_result = self.document_parser.detect_document_type(
-                ocr_result['text'], 
+                ocr_result['text'],
                 os.path.basename(file_path)
             )
-            
+
             doc_type = detection_result['document_type']
-            
+
             # Parse based on detected type
             if doc_type.value == 'receipt':
                 parse_result = self.document_parser.parse_receipt(ocr_result['text'])
@@ -130,12 +129,12 @@ class SwissAccountant:
                     'total_amount': common_fields['amounts'][-1]['value'] if common_fields['amounts'] else None,
                     'confidence': 0.5
                 }
-            
+
             # Normalize merchant
             merchant_result = {'canonical': None, 'merchant_id': None}
             if parse_result.get('merchant'):
                 merchant_result = self.merchant_normalizer.normalize_merchant_name(parse_result['merchant'])
-            
+
             # Map to tax category
             category_result = {'deduction_category': 'non_deductible', 'confidence': 0.0}
             if parse_result.get('merchant') and merchant_result.get('canonical'):
@@ -146,7 +145,7 @@ class SwissAccountant:
                     amount=Decimal(str(parse_result.get('total_amount', 0))),
                     date=datetime.fromisoformat(parse_result['date']).date() if parse_result.get('date') else date.today()
                 )
-            
+
             # Store as expense
             expense_data = {
                 'user_id': user_id,
@@ -154,7 +153,7 @@ class SwissAccountant:
                 'date_local': parse_result.get('date', date.today().isoformat()),
                 'merchant_text': parse_result.get('merchant', ''),
                 'merchant_id': merchant_result.get('merchant_id'),
-                'amount_cents': int((parse_result.get('total_amount', 0) * 100)),
+                'amount_cents': int(parse_result.get('total_amount', 0) * 100),
                 'currency': 'CHF',
                 'category_code': category_result.get('deduction_category', 'other'),
                 'pro_pct': 0,  # Default to 0% business use
@@ -165,7 +164,7 @@ class SwissAccountant:
                     'amount': parse_result.get('vat_amount', 0)
                 }) if parse_result.get('vat_rate') else None
             }
-            
+
             expense_id = self.db.execute("""
                 INSERT INTO sa_expenses (
                     user_id, doc_id, date_local, merchant_text, merchant_id,
@@ -178,7 +177,7 @@ class SwissAccountant:
                 expense_data['currency'], expense_data['category_code'], expense_data['pro_pct'],
                 expense_data['notes'], expense_data['payment_method'], expense_data['vat_breakdown_json']
             ))
-            
+
             return {
                 'success': True,
                 'document_id': doc_id,
@@ -189,24 +188,24 @@ class SwissAccountant:
                 'tax_category': category_result,
                 'ocr_confidence': ocr_result.get('confidence', 0),
                 'overall_confidence': (
-                    ocr_result.get('confidence', 0) + 
-                    parse_result.get('confidence', 0) + 
-                    merchant_result.get('confidence', 0) + 
+                    ocr_result.get('confidence', 0) +
+                    parse_result.get('confidence', 0) +
+                    merchant_result.get('confidence', 0) +
                     category_result.get('confidence', 0)
                 ) / 4
             }
-            
+
         except Exception as e:
             self.logger.error(f"Receipt processing failed: {e}")
             return {
                 'success': False,
                 'error': str(e)
             }
-    
-    def process_bank_statement(self, 
+
+    def process_bank_statement(self,
                               file_path: str,
                               user_id: str = None,
-                              account_name: str = None) -> Dict[str, Any]:
+                              account_name: str = None) -> dict[str, Any]:
         """Process a bank statement file.
         
         Args:
@@ -221,18 +220,18 @@ class SwissAccountant:
             user_id = user_id or self.user_id
             if not user_id:
                 return {'success': False, 'error': 'User ID required'}
-            
+
             self.logger.info(f"Processing bank statement: {file_path}")
-            
+
             # Read file content
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, encoding='utf-8') as f:
                 content = f.read()
-            
+
             # Parse statement
             parse_result = self.statement_parser.parse_statement(content)
             if not parse_result['success']:
                 return parse_result
-            
+
             # Store statement
             statement_id = self.db.execute("""
                 INSERT INTO sa_statements (
@@ -241,7 +240,7 @@ class SwissAccountant:
                     total_transactions, processed_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             """, (
-                user_id, 
+                user_id,
                 os.path.basename(file_path),
                 file_path,
                 parse_result['format'],
@@ -250,7 +249,7 @@ class SwissAccountant:
                 parse_result.get('statement_info', {}).get('to_date'),
                 parse_result['transaction_count']
             ))
-            
+
             # Store transactions
             transaction_ids = []
             for transaction in parse_result['transactions']:
@@ -271,7 +270,7 @@ class SwissAccountant:
                     transaction.get('raw_description', transaction.get('description', ''))
                 ))
                 transaction_ids.append(trans_id)
-            
+
             return {
                 'success': True,
                 'statement_id': statement_id,
@@ -281,22 +280,22 @@ class SwissAccountant:
                 'account_info': parse_result.get('account_info', {}),
                 'statement_info': parse_result.get('statement_info', {})
             }
-            
+
         except Exception as e:
             self.logger.error(f"Bank statement processing failed: {e}")
             return {
                 'success': False,
                 'error': str(e)
             }
-    
+
     # Expense Management Methods
-    
-    def get_expenses(self, 
+
+    def get_expenses(self,
                     user_id: str = None,
                     start_date: date = None,
                     end_date: date = None,
                     category: str = None,
-                    limit: int = 100) -> List[Dict[str, Any]]:
+                    limit: int = 100) -> list[dict[str, Any]]:
         """Get expenses with optional filters.
         
         Args:
@@ -313,7 +312,7 @@ class SwissAccountant:
             user_id = user_id or self.user_id
             if not user_id:
                 return []
-            
+
             # Build query
             query = """
                 SELECT e.*, m.canonical as merchant_canonical,
@@ -324,47 +323,47 @@ class SwissAccountant:
                 WHERE e.user_id = ?
             """
             params = [user_id]
-            
+
             if start_date:
                 query += " AND e.date_local >= ?"
                 params.append(start_date)
-            
+
             if end_date:
                 query += " AND e.date_local <= ?"
                 params.append(end_date)
-            
+
             if category:
                 query += " AND e.category_code = ?"
                 params.append(category)
-            
+
             query += " ORDER BY e.date_local DESC, e.amount_cents DESC LIMIT ?"
             params.append(limit)
-            
+
             expenses = self.db.query_all(query, params)
-            
+
             # Convert amount_cents to CHF and add calculated fields
             for expense in expenses:
                 expense['amount_chf'] = float(Decimal(expense['amount_cents']) / 100)
                 expense['business_amount_chf'] = expense['amount_chf'] * (expense['pro_pct'] / 100) if expense['pro_pct'] > 0 else 0
-                
+
                 # Parse VAT breakdown if available
                 if expense.get('vat_breakdown_json'):
                     try:
                         expense['vat_breakdown'] = json.loads(expense['vat_breakdown_json'])
                     except json.JSONDecodeError:
                         expense['vat_breakdown'] = None
-            
+
             return expenses
-            
+
         except Exception as e:
             self.logger.error(f"Get expenses failed: {e}")
             return []
-    
-    def update_expense_category(self, 
+
+    def update_expense_category(self,
                                expense_id: int,
                                category_code: str,
                                business_percentage: int = None,
-                               user_id: str = None) -> Dict[str, Any]:
+                               user_id: str = None) -> dict[str, Any]:
         """Update expense category and business percentage.
         
         Args:
@@ -380,52 +379,52 @@ class SwissAccountant:
             user_id = user_id or self.user_id
             if not user_id:
                 return {'success': False, 'error': 'User ID required'}
-            
+
             # Verify expense exists and belongs to user
             expense = self.db.query_one("""
                 SELECT id FROM sa_expenses WHERE id = ? AND user_id = ?
             """, (expense_id, user_id))
-            
+
             if not expense:
                 return {
                     'success': False,
                     'error': 'Expense not found or access denied'
                 }
-            
+
             # Update expense
             update_query = "UPDATE sa_expenses SET category_code = ?"
             params = [category_code]
-            
+
             if business_percentage is not None:
                 update_query += ", pro_pct = ?"
                 params.append(max(0, min(100, business_percentage)))
-            
+
             update_query += " WHERE id = ?"
             params.append(expense_id)
-            
+
             self.db.execute(update_query, params)
-            
+
             return {
                 'success': True,
                 'expense_id': expense_id,
                 'category_code': category_code,
                 'business_percentage': business_percentage
             }
-            
+
         except Exception as e:
             self.logger.error(f"Update expense category failed: {e}")
             return {
                 'success': False,
                 'error': str(e)
             }
-    
+
     # Reconciliation Methods
-    
-    def reconcile_expenses(self, 
+
+    def reconcile_expenses(self,
                           period_start: date,
                           period_end: date,
                           user_id: str = None,
-                          auto_accept: bool = True) -> Dict[str, Any]:
+                          auto_accept: bool = True) -> dict[str, Any]:
         """Reconcile expenses with bank transactions for a period.
         
         Args:
@@ -441,26 +440,26 @@ class SwissAccountant:
             user_id = user_id or self.user_id
             if not user_id:
                 return {'success': False, 'error': 'User ID required'}
-            
+
             self.logger.info(f"Starting reconciliation for {period_start} to {period_end}")
-            
+
             result = self.transaction_matcher.reconcile_period(
                 period_start=period_start,
                 period_end=period_end,
                 user_id=user_id,
                 auto_accept=auto_accept
             )
-            
+
             return result
-            
+
         except Exception as e:
             self.logger.error(f"Reconciliation failed: {e}")
             return {
                 'success': False,
                 'error': str(e)
             }
-    
-    def get_reconciliation_summary(self, user_id: str = None) -> Dict[str, Any]:
+
+    def get_reconciliation_summary(self, user_id: str = None) -> dict[str, Any]:
         """Get reconciliation summary for user.
         
         Args:
@@ -473,19 +472,19 @@ class SwissAccountant:
             user_id = user_id or self.user_id
             if not user_id:
                 return {'error': 'User ID required'}
-            
+
             return self.transaction_matcher.get_reconciliation_summary(user_id)
-            
+
         except Exception as e:
             self.logger.error(f"Get reconciliation summary failed: {e}")
             return {'error': str(e)}
-    
+
     # Tax and Export Methods
-    
-    def calculate_tax_deductions(self, 
+
+    def calculate_tax_deductions(self,
                                 year: int,
                                 canton: str = None,
-                                user_id: str = None) -> Dict[str, Any]:
+                                user_id: str = None) -> dict[str, Any]:
         """Calculate potential tax deductions for a year.
         
         Args:
@@ -500,7 +499,7 @@ class SwissAccountant:
             user_id = user_id or self.user_id
             if not user_id:
                 return {'success': False, 'error': 'User ID required'}
-            
+
             # Get all expenses for the year
             expenses = self.db.query_all("""
                 SELECT e.*, cm.deduction_category, cm.confidence as mapping_confidence
@@ -510,28 +509,28 @@ class SwissAccountant:
                 AND strftime('%Y', e.date_local) = ?
                 ORDER BY e.date_local
             """, (user_id, str(year)))
-            
+
             # Group by deduction category
             deductions = {}
             total_expenses = 0
             total_deductible = 0
-            
+
             for expense in expenses:
                 amount_chf = float(Decimal(expense['amount_cents']) / 100)
                 total_expenses += amount_chf
-                
+
                 deduction_category = expense.get('deduction_category', 'non_deductible')
                 business_pct = expense.get('pro_pct', 0)
-                
+
                 # Calculate deductible amount
                 if deduction_category != 'non_deductible':
                     if business_pct > 0:
                         deductible_amount = amount_chf * (business_pct / 100)
                     else:
                         deductible_amount = amount_chf
-                    
+
                     total_deductible += deductible_amount
-                    
+
                     if deduction_category not in deductions:
                         deductions[deduction_category] = {
                             'total_amount': 0,
@@ -539,7 +538,7 @@ class SwissAccountant:
                             'expense_count': 0,
                             'expenses': []
                         }
-                    
+
                     deductions[deduction_category]['total_amount'] += amount_chf
                     deductions[deduction_category]['deductible_amount'] += deductible_amount
                     deductions[deduction_category]['expense_count'] += 1
@@ -551,12 +550,12 @@ class SwissAccountant:
                         'deductible_amount': deductible_amount,
                         'business_pct': business_pct
                     })
-            
+
             # Calculate potential tax savings (rough estimate)
             # Assuming average tax rate of 25% (varies by canton and income)
             estimated_tax_rate = 0.25
             estimated_savings = total_deductible * estimated_tax_rate
-            
+
             return {
                 'success': True,
                 'year': year,
@@ -575,19 +574,19 @@ class SwissAccountant:
                 },
                 'expense_count': len(expenses)
             }
-            
+
         except Exception as e:
             self.logger.error(f"Tax deduction calculation failed: {e}")
             return {
                 'success': False,
                 'error': str(e)
             }
-    
-    def export_tax_data(self, 
+
+    def export_tax_data(self,
                        year: int,
                        format: str = 'csv',
                        canton: str = None,
-                       user_id: str = None) -> Dict[str, Any]:
+                       user_id: str = None) -> dict[str, Any]:
         """Export tax data for a year.
         
         Args:
@@ -603,21 +602,21 @@ class SwissAccountant:
             user_id = user_id or self.user_id
             if not user_id:
                 return {'success': False, 'error': 'User ID required'}
-            
+
             return self.export_manager.export_tax_data(
                 self.db, user_id, year, format, canton
             )
-            
+
         except Exception as e:
             self.logger.error(f"Tax data export failed: {e}")
             return {
                 'success': False,
                 'error': str(e)
             }
-    
+
     # Utility Methods
-    
-    def get_dashboard_summary(self, user_id: str = None) -> Dict[str, Any]:
+
+    def get_dashboard_summary(self, user_id: str = None) -> dict[str, Any]:
         """Get dashboard summary for user.
         
         Args:
@@ -630,7 +629,7 @@ class SwissAccountant:
             user_id = user_id or self.user_id
             if not user_id:
                 return {'error': 'User ID required'}
-            
+
             # Get current year expenses
             current_year = datetime.now().year
             year_expenses = self.db.query_one("""
@@ -641,7 +640,7 @@ class SwissAccountant:
                 FROM sa_expenses
                 WHERE user_id = ? AND strftime('%Y', date_local) = ?
             """, (user_id, str(current_year)))
-            
+
             # Get monthly breakdown
             monthly_expenses = self.db.query_all("""
                 SELECT 
@@ -653,7 +652,7 @@ class SwissAccountant:
                 GROUP BY strftime('%Y-%m', date_local)
                 ORDER BY month
             """, (user_id, str(current_year)))
-            
+
             # Get top categories
             top_categories = self.db.query_all("""
                 SELECT 
@@ -666,10 +665,10 @@ class SwissAccountant:
                 ORDER BY total_cents DESC
                 LIMIT 10
             """, (user_id, str(current_year)))
-            
+
             # Get reconciliation status
             reconciliation_summary = self.get_reconciliation_summary(user_id)
-            
+
             return {
                 'year': current_year,
                 'total_expenses': year_expenses['expense_count'] or 0,
@@ -693,12 +692,12 @@ class SwissAccountant:
                 ],
                 'reconciliation': reconciliation_summary
             }
-            
+
         except Exception as e:
             self.logger.error(f"Dashboard summary failed: {e}")
             return {'error': str(e)}
-    
-    def health_check(self) -> Dict[str, Any]:
+
+    def health_check(self) -> dict[str, Any]:
         """Perform system health check.
         
         Returns:
@@ -710,7 +709,7 @@ class SwissAccountant:
                 'components': {},
                 'timestamp': datetime.now().isoformat()
             }
-            
+
             # Check database
             try:
                 self.db.query_one("SELECT 1")
@@ -718,7 +717,7 @@ class SwissAccountant:
             except Exception as e:
                 health['components']['database'] = f'error: {str(e)}'
                 health['status'] = 'degraded'
-            
+
             # Check OCR
             try:
                 # Simple OCR test doesn't require actual file
@@ -726,7 +725,7 @@ class SwissAccountant:
             except Exception as e:
                 health['components']['ocr'] = f'error: {str(e)}'
                 health['status'] = 'degraded'
-            
+
             # Check all other components
             components = [
                 ('document_parser', self.document_parser),
@@ -736,16 +735,16 @@ class SwissAccountant:
                 ('transaction_matcher', self.transaction_matcher),
                 ('export_manager', self.export_manager)
             ]
-            
+
             for name, component in components:
                 if component:
                     health['components'][name] = 'healthy'
                 else:
                     health['components'][name] = 'not_initialized'
                     health['status'] = 'degraded'
-            
+
             return health
-            
+
         except Exception as e:
             return {
                 'status': 'unhealthy',
@@ -755,9 +754,9 @@ class SwissAccountant:
 
 
 # Factory functions for easy import
-def create_swiss_accountant(db_path: str = None, 
-                           user_id: str = None, 
-                           config: Dict[str, Any] = None) -> SwissAccountant:
+def create_swiss_accountant(db_path: str = None,
+                           user_id: str = None,
+                           config: dict[str, Any] = None) -> SwissAccountant:
     """Create Swiss Accountant instance.
     
     Args:
@@ -772,7 +771,7 @@ def create_swiss_accountant(db_path: str = None,
 
 
 # Configuration helpers
-def get_default_config() -> Dict[str, Any]:
+def get_default_config() -> dict[str, Any]:
     """Get default configuration."""
     return {
         'database_path': 'swiss_accountant.db',
@@ -785,10 +784,10 @@ def get_default_config() -> Dict[str, Any]:
     }
 
 
-def load_config_from_file(config_path: str) -> Dict[str, Any]:
+def load_config_from_file(config_path: str) -> dict[str, Any]:
     """Load configuration from JSON file."""
     try:
-        with open(config_path, 'r') as f:
+        with open(config_path) as f:
             return json.load(f)
     except Exception as e:
         logging.error(f"Failed to load config from {config_path}: {e}")

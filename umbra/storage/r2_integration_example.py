@@ -5,41 +5,41 @@ This demonstrates migration from SQLite to R2 storage for the finance module.
 
 import asyncio
 import json
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from datetime import UTC, datetime
+from typing import Any
 
-from ..storage import get_storage_manager, StorageRecord
 from ..core.logger import get_logger
+from ..storage import StorageRecord, get_storage_manager
 
 logger = get_logger("umbra.integration.r2_example")
 
 
 class FinanceR2Integration:
     """Example showing how to integrate R2 storage into the finance module."""
-    
+
     def __init__(self, config):
         """Initialize finance R2 integration."""
         self.config = config
         self.logger = logger
         self._storage_manager = None
-    
+
     async def get_storage(self):
         """Get storage manager instance."""
         if self._storage_manager is None:
             self._storage_manager = await get_storage_manager()
         return self._storage_manager
-    
-    async def store_transaction(self, user_id: str, transaction_data: Dict[str, Any]) -> str:
+
+    async def store_transaction(self, user_id: str, transaction_data: dict[str, Any]) -> str:
         """Store a financial transaction using R2 storage."""
         storage = await self.get_storage()
-        
+
         # Add timestamp and ID if not present
         if 'timestamp' not in transaction_data:
-            transaction_data['timestamp'] = datetime.now(timezone.utc).isoformat()
-        
+            transaction_data['timestamp'] = datetime.now(UTC).isoformat()
+
         if 'id' not in transaction_data:
-            transaction_data['id'] = f"txn_{int(datetime.now(timezone.utc).timestamp())}"
-        
+            transaction_data['id'] = f"txn_{int(datetime.now(UTC).timestamp())}"
+
         # Store transaction data
         try:
             record = await storage.store_data(
@@ -48,25 +48,25 @@ class FinanceR2Integration:
                 data=transaction_data,
                 data_format="json"  # Single transaction as JSON
             )
-            
+
             self.logger.info(f"Stored transaction {transaction_data['id']} for user {user_id}")
             return record.id
-            
+
         except Exception as e:
             self.logger.error(f"Failed to store transaction: {e}")
             raise
-    
-    async def store_bulk_transactions(self, user_id: str, transactions: List[Dict[str, Any]]) -> str:
+
+    async def store_bulk_transactions(self, user_id: str, transactions: list[dict[str, Any]]) -> str:
         """Store multiple transactions using JSONL format."""
         storage = await self.get_storage()
-        
+
         # Prepare transactions with IDs and timestamps
         for i, txn in enumerate(transactions):
             if 'timestamp' not in txn:
-                txn['timestamp'] = datetime.now(timezone.utc).isoformat()
+                txn['timestamp'] = datetime.now(UTC).isoformat()
             if 'id' not in txn:
-                txn['id'] = f"txn_bulk_{int(datetime.now(timezone.utc).timestamp())}_{i}"
-        
+                txn['id'] = f"txn_bulk_{int(datetime.now(UTC).timestamp())}_{i}"
+
         try:
             record = await storage.store_data(
                 module="finance",
@@ -74,21 +74,21 @@ class FinanceR2Integration:
                 data={"records": transactions},
                 data_format="jsonl"  # Multiple transactions as JSONL
             )
-            
+
             self.logger.info(f"Stored {len(transactions)} transactions for user {user_id}")
             return record.id
-            
+
         except Exception as e:
             self.logger.error(f"Failed to store bulk transactions: {e}")
             raise
-    
-    async def store_analytics_data(self, user_id: str, analytics: Dict[str, Any]) -> str:
+
+    async def store_analytics_data(self, user_id: str, analytics: dict[str, Any]) -> str:
         """Store financial analytics using Parquet format for structured data."""
         storage = await self.get_storage()
-        
+
         # Convert analytics to list of records for Parquet storage
         analytics_records = []
-        
+
         # Example: Convert monthly summaries to records
         if 'monthly_summaries' in analytics:
             for month, summary in analytics['monthly_summaries'].items():
@@ -99,9 +99,9 @@ class FinanceR2Integration:
                     'net_income': summary.get('net', 0),
                     'transaction_count': summary.get('count', 0),
                     'user_id': user_id,
-                    'generated_at': datetime.now(timezone.utc).isoformat()
+                    'generated_at': datetime.now(UTC).isoformat()
                 })
-        
+
         if analytics_records:
             try:
                 record = await storage.store_data(
@@ -110,10 +110,10 @@ class FinanceR2Integration:
                     data={"records": analytics_records},
                     data_format="parquet"  # Structured analytics as Parquet
                 )
-                
+
                 self.logger.info(f"Stored analytics data for user {user_id}")
                 return record.id
-                
+
             except Exception as e:
                 self.logger.error(f"Failed to store analytics data: {e}")
                 raise
@@ -126,11 +126,11 @@ class FinanceR2Integration:
                 data_format="json"
             )
             return record.id
-    
-    async def retrieve_transactions(self, user_id: str, transaction_id: str = None) -> Optional[List[Dict[str, Any]]]:
+
+    async def retrieve_transactions(self, user_id: str, transaction_id: str = None) -> list[dict[str, Any]] | None:
         """Retrieve transactions from R2 storage."""
         storage = await self.get_storage()
-        
+
         try:
             if transaction_id:
                 # Retrieve specific transaction
@@ -153,18 +153,18 @@ class FinanceR2Integration:
                             all_transactions.append(record.data)
                     return all_transactions
                 return []
-                
+
         except Exception as e:
             self.logger.error(f"Failed to retrieve transactions: {e}")
             return []
-    
-    async def search_transactions(self, user_id: str, query: str) -> List[Dict[str, Any]]:
+
+    async def search_transactions(self, user_id: str, query: str) -> list[dict[str, Any]]:
         """Search transactions using the R2 text search functionality."""
         storage = await self.get_storage()
-        
+
         try:
             search_results = await storage.search_data("finance", user_id, query)
-            
+
             transactions = []
             for record in search_results:
                 if isinstance(record.data, dict) and 'records' in record.data:
@@ -175,41 +175,41 @@ class FinanceR2Integration:
                             transactions.append(item)
                 elif query.lower() in json.dumps(record.data, default=str).lower():
                     transactions.append(record.data)
-            
+
             self.logger.info(f"Found {len(transactions)} transactions matching '{query}'")
             return transactions
-            
+
         except Exception as e:
             self.logger.error(f"Failed to search transactions: {e}")
             return []
-    
-    async def generate_download_link(self, user_id: str, record_id: str) -> Optional[str]:
+
+    async def generate_download_link(self, user_id: str, record_id: str) -> str | None:
         """Generate presigned URL for downloading financial data."""
         storage = await self.get_storage()
-        
+
         try:
             # Find the storage record
             record = await storage.retrieve_data("finance", user_id, record_id)
             if record and isinstance(record, StorageRecord) and record.storage_key:
                 # Generate presigned URL
                 url = await storage.generate_presigned_url(
-                    record.storage_key, 
+                    record.storage_key,
                     expiration=3600  # 1 hour
                 )
-                
+
                 self.logger.info(f"Generated download link for record {record_id}")
                 return url
-            
+
             return None
-            
+
         except Exception as e:
             self.logger.error(f"Failed to generate download link: {e}")
             return None
-    
-    async def get_storage_info(self) -> Dict[str, Any]:
+
+    async def get_storage_info(self) -> dict[str, Any]:
         """Get information about the storage backend being used."""
         storage = await self.get_storage()
-        
+
         try:
             info = await storage.get_storage_info()
             return {
@@ -228,12 +228,12 @@ class FinanceR2Integration:
 async def demo_r2_integration():
     """Demonstrate R2 integration with sample data."""
     from ..core.config import config
-    
+
     integration = FinanceR2Integration(config)
     user_id = "demo_user"
-    
+
     print("=== R2 Storage Integration Demo ===")
-    
+
     # 1. Store single transaction
     print("\n1. Storing single transaction...")
     transaction = {
@@ -242,13 +242,13 @@ async def demo_r2_integration():
         "category": "dining",
         "account": "checking"
     }
-    
+
     try:
         txn_id = await integration.store_transaction(user_id, transaction)
         print(f"✓ Stored transaction: {txn_id}")
     except Exception as e:
         print(f"✗ Failed to store transaction: {e}")
-    
+
     # 2. Store bulk transactions as JSONL
     print("\n2. Storing bulk transactions...")
     bulk_transactions = [
@@ -256,13 +256,13 @@ async def demo_r2_integration():
         {"amount": 100.00, "description": "Gas station", "category": "transportation"},
         {"amount": 1500.00, "description": "Salary", "category": "income", "type": "income"}
     ]
-    
+
     try:
         bulk_id = await integration.store_bulk_transactions(user_id, bulk_transactions)
         print(f"✓ Stored bulk transactions: {bulk_id}")
     except Exception as e:
         print(f"✗ Failed to store bulk transactions: {e}")
-    
+
     # 3. Store analytics as Parquet
     print("\n3. Storing analytics data...")
     analytics = {
@@ -271,13 +271,13 @@ async def demo_r2_integration():
             "2024-02": {"income": 3200, "expenses": 2800, "net": 400, "count": 52}
         }
     }
-    
+
     try:
         analytics_id = await integration.store_analytics_data(user_id, analytics)
         print(f"✓ Stored analytics: {analytics_id}")
     except Exception as e:
         print(f"✗ Failed to store analytics: {e}")
-    
+
     # 4. Retrieve transactions
     print("\n4. Retrieving transactions...")
     try:
@@ -285,7 +285,7 @@ async def demo_r2_integration():
         print(f"✓ Retrieved {len(transactions) if transactions else 0} transactions")
     except Exception as e:
         print(f"✗ Failed to retrieve transactions: {e}")
-    
+
     # 5. Search transactions
     print("\n5. Searching transactions...")
     try:
@@ -293,7 +293,7 @@ async def demo_r2_integration():
         print(f"✓ Found {len(results)} matching transactions")
     except Exception as e:
         print(f"✗ Failed to search transactions: {e}")
-    
+
     # 6. Get storage info
     print("\n6. Storage information...")
     try:
@@ -301,7 +301,7 @@ async def demo_r2_integration():
         print(f"✓ Backend: {info['backend']}, R2 enabled: {info['r2_enabled']}")
     except Exception as e:
         print(f"✗ Failed to get storage info: {e}")
-    
+
     print("\n=== Demo completed ===")
 
 

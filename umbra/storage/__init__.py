@@ -30,55 +30,45 @@ Example Usage:
 """
 
 # F4R2 Core Components
-from .r2_client import (
-    R2Client,
-    R2ClientError,
-    R2ConnectionError, 
-    R2AuthenticationError,
-    R2NotFoundError
-)
-
-from .objects import (
-    ObjectStorage,
-    ObjectStorageError,
-    ObjectNotFoundError
-)
-
 from .manifest import (
-    ManifestManager,
+    PARQUET_AVAILABLE,
+    ManifestConcurrencyError,
     ManifestEntry,
     ManifestError,
-    ManifestConcurrencyError,
-    PARQUET_AVAILABLE
+    ManifestManager,
 )
-
-from .search_index import (
-    SearchIndex,
-    SearchIndexError
+from .objects import ObjectNotFoundError, ObjectStorage, ObjectStorageError
+from .r2_client import (
+    R2AuthenticationError,
+    R2Client,
+    R2ClientError,
+    R2ConnectionError,
+    R2NotFoundError,
 )
+from .search_index import SearchIndex, SearchIndexError
 
 # Convenience imports
 __all__ = [
     # Core Classes
     "R2Client",
-    "ObjectStorage", 
+    "ObjectStorage",
     "ManifestManager",
     "SearchIndex",
-    
+
     # Data Types
     "ManifestEntry",
-    
+
     # Exceptions
     "R2ClientError",
     "R2ConnectionError",
-    "R2AuthenticationError", 
+    "R2AuthenticationError",
     "R2NotFoundError",
     "ObjectStorageError",
     "ObjectNotFoundError",
     "ManifestError",
     "ManifestConcurrencyError",
     "SearchIndexError",
-    
+
     # Feature Flags
     "PARQUET_AVAILABLE"
 ]
@@ -91,9 +81,10 @@ __description__ = "F4R2 - Cloudflare R2 Object Storage for Umbra"
 # Feature detection
 def get_storage_info():
     """Get information about available storage features."""
-    from .r2_client import R2Client
     from umbra.core.config import config
-    
+
+    from .r2_client import R2Client
+
     # Test R2 availability
     try:
         r2_client = R2Client(config)
@@ -102,7 +93,7 @@ def get_storage_info():
     except Exception:
         r2_available = False
         r2_configured = False
-    
+
     return {
         "version": __version__,
         "r2_configured": r2_configured,
@@ -110,7 +101,7 @@ def get_storage_info():
         "parquet_available": PARQUET_AVAILABLE,
         "components": {
             "r2_client": "✅ Available",
-            "object_storage": "✅ Available", 
+            "object_storage": "✅ Available",
             "manifest_manager": "✅ Available",
             "search_index": "✅ Available"
         }

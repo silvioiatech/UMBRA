@@ -2,14 +2,13 @@
 Expense Transaction Matcher for Swiss Accountant
 Reconciles expenses with bank/card transactions using exact and probable matching strategies.
 """
-import re
-import hashlib
-from typing import Dict, List, Optional, Tuple, Any
-from decimal import Decimal
-from datetime import datetime, date, timedelta
-from enum import Enum
 import json
 import logging
+import re
+from datetime import date, datetime, timedelta
+from decimal import Decimal
+from enum import Enum
+from typing import Any
 
 
 class MatchType(Enum):
@@ -31,7 +30,7 @@ class MatchStrategy(Enum):
 
 class ExpenseTransactionMatcher:
     """Matches expenses with bank/card transactions for reconciliation."""
-    
+
     def __init__(self, db_manager):
         """Initialize expense transaction matcher.
         
@@ -40,7 +39,7 @@ class ExpenseTransactionMatcher:
         """
         self.db = db_manager
         self.logger = logging.getLogger(__name__)
-        
+
         # Matching configuration
         self.config = {
             'exact_match_tolerance_days': 2,  # Days tolerance for date matching
@@ -50,10 +49,10 @@ class ExpenseTransactionMatcher:
             'auto_accept_exact_threshold': 0.95,
             'auto_accept_probable_threshold': 0.85
         }
-        
+
         # Initialize reconciliation tables
         self._init_reconciliation_tables()
-    
+
     def _init_reconciliation_tables(self):
         """Initialize reconciliation tracking tables."""
         try:
@@ -77,7 +76,7 @@ class ExpenseTransactionMatcher:
                     UNIQUE(expense_id, transaction_id)
                 )
             """)
-            
+
             # Reconciliation sessions table
             self.db.execute("""
                 CREATE TABLE IF NOT EXISTS sa_reconciliation_sessions (
@@ -99,21 +98,21 @@ class ExpenseTransactionMatcher:
                     completed_at TIMESTAMP
                 )
             """)
-            
+
             # Create indexes for performance
             self.db.execute("CREATE INDEX IF NOT EXISTS idx_reconciliation_expense ON sa_reconciliation_matches (expense_id)")
             self.db.execute("CREATE INDEX IF NOT EXISTS idx_reconciliation_transaction ON sa_reconciliation_matches (transaction_id)")
             self.db.execute("CREATE INDEX IF NOT EXISTS idx_reconciliation_confidence ON sa_reconciliation_matches (confidence_score)")
-            
+
         except Exception as e:
             self.logger.error(f"Reconciliation tables initialization failed: {e}")
-    
-    def reconcile_period(self, 
+
+    def reconcile_period(self,
                         period_start: date,
                         period_end: date,
                         user_id: str,
                         strategy: MatchStrategy = MatchStrategy.AMOUNT_DATE_MERCHANT,
-                        auto_accept: bool = True) -> Dict[str, Any]:
+                        auto_accept: bool = True) -> dict[str, Any]:
         """Reconcile expenses with transactions for a given period.
         
         Args:
@@ -132,26 +131,26 @@ class ExpenseTransactionMatcher:
                 INSERT INTO sa_reconciliation_sessions 
                 (user_id, period_start, period_end, strategy, session_name)
                 VALUES (?, ?, ?, ?, ?)
-            """, (user_id, period_start, period_end, strategy.value, 
+            """, (user_id, period_start, period_end, strategy.value,
                   f"Reconciliation {period_start} to {period_end}"))
-            
+
             # Get unmatched expenses for period
             expenses = self._get_unmatched_expenses(period_start, period_end, user_id)
-            
+
             # Get unmatched transactions for period (with some buffer)
             buffer_start = period_start - timedelta(days=self.config['probable_match_tolerance_days'])
             buffer_end = period_end + timedelta(days=self.config['probable_match_tolerance_days'])
             transactions = self._get_unmatched_transactions(buffer_start, buffer_end, user_id)
-            
+
             # Perform matching
             matches = self._perform_matching(expenses, transactions, strategy)
-            
+
             # Process matches
             results = self._process_matches(matches, session_id, auto_accept)
-            
+
             # Update session with results
             self._update_session_results(session_id, len(expenses), len(transactions), results)
-            
+
             return {
                 'success': True,
                 'session_id': session_id,
@@ -168,7 +167,7 @@ class ExpenseTransactionMatcher:
                 'auto_accepted': results['auto_accepted'],
                 'matches': results['match_details'][:50]  # Limit for response size
             }
-            
+
         except Exception as e:
             self.logger.error(f"Reconciliation failed: {e}")
             return {
@@ -176,8 +175,8 @@ class ExpenseTransactionMatcher:
                 'error': str(e),
                 'session_id': None
             }
-    
-    def _get_unmatched_expenses(self, start_date: date, end_date: date, user_id: str) -> List[Dict[str, Any]]:
+
+    def _get_unmatched_expenses(self, start_date: date, end_date: date, user_id: str) -> list[dict[str, Any]]:
         """Get unmatched expenses for period."""
         try:
             expenses = self.db.query_all("""
@@ -190,14 +189,14 @@ class ExpenseTransactionMatcher:
                 AND rm.id IS NULL
                 ORDER BY e.date_local, e.amount_cents DESC
             """, (user_id, start_date, end_date))
-            
+
             return expenses
-            
+
         except Exception as e:
             self.logger.error(f"Failed to get unmatched expenses: {e}")
             return []
-    
-    def _get_unmatched_transactions(self, start_date: date, end_date: date, user_id: str) -> List[Dict[str, Any]]:
+
+    def _get_unmatched_transactions(self, start_date: date, end_date: date, user_id: str) -> list[dict[str, Any]]:
         """Get unmatched transactions for period."""
         try:
             transactions = self.db.query_all("""
@@ -211,37 +210,37 @@ class ExpenseTransactionMatcher:
                 AND t.amount_cents != 0
                 ORDER BY COALESCE(t.value_date, t.booking_date), ABS(t.amount_cents) DESC
             """, (user_id, user_id, start_date, end_date, start_date, end_date))
-            
+
             return transactions
-            
+
         except Exception as e:
             self.logger.error(f"Failed to get unmatched transactions: {e}")
             return []
-    
-    def _perform_matching(self, 
-                         expenses: List[Dict[str, Any]], 
-                         transactions: List[Dict[str, Any]], 
-                         strategy: MatchStrategy) -> List[Dict[str, Any]]:
+
+    def _perform_matching(self,
+                         expenses: list[dict[str, Any]],
+                         transactions: list[dict[str, Any]],
+                         strategy: MatchStrategy) -> list[dict[str, Any]]:
         """Perform matching between expenses and transactions."""
         try:
             matches = []
-            
+
             for expense in expenses:
                 expense_amount = Decimal(expense['amount_cents']) / 100
                 expense_date = datetime.fromisoformat(expense['date_local']).date()
-                
+
                 best_matches = []
-                
+
                 for transaction in transactions:
                     transaction_amount = abs(Decimal(transaction['amount_cents']) / 100)
                     transaction_date = self._get_transaction_date(transaction)
-                    
+
                     # Calculate match score based on strategy
                     match_score = self._calculate_match_score(
                         expense, transaction, expense_amount, expense_date,
                         transaction_amount, transaction_date, strategy
                     )
-                    
+
                     if match_score['total_score'] >= self.config['minimum_match_score']:
                         best_matches.append({
                             'expense': expense,
@@ -250,12 +249,12 @@ class ExpenseTransactionMatcher:
                             'details': match_score,
                             'strategy': strategy
                         })
-                
+
                 # Sort matches by score and take the best one
                 if best_matches:
                     best_matches.sort(key=lambda x: x['score'], reverse=True)
                     best_match = best_matches[0]
-                    
+
                     # Determine match type based on score
                     if best_match['score'] >= self.config['auto_accept_exact_threshold']:
                         match_type = MatchType.EXACT
@@ -263,17 +262,17 @@ class ExpenseTransactionMatcher:
                         match_type = MatchType.PROBABLE
                     else:
                         match_type = MatchType.NEEDS_REVIEW
-                    
+
                     best_match['match_type'] = match_type
                     matches.append(best_match)
-            
+
             return matches
-            
+
         except Exception as e:
             self.logger.error(f"Matching process failed: {e}")
             return []
-    
-    def _get_transaction_date(self, transaction: Dict[str, Any]) -> Optional[date]:
+
+    def _get_transaction_date(self, transaction: dict[str, Any]) -> date | None:
         """Get best available date from transaction."""
         try:
             # Prefer value date, fall back to booking date
@@ -282,18 +281,18 @@ class ExpenseTransactionMatcher:
             elif transaction.get('booking_date'):
                 return datetime.fromisoformat(transaction['booking_date']).date()
             return None
-            
+
         except (ValueError, TypeError):
             return None
-    
-    def _calculate_match_score(self, 
-                              expense: Dict[str, Any], 
-                              transaction: Dict[str, Any],
+
+    def _calculate_match_score(self,
+                              expense: dict[str, Any],
+                              transaction: dict[str, Any],
                               expense_amount: Decimal,
                               expense_date: date,
                               transaction_amount: Decimal,
-                              transaction_date: Optional[date],
-                              strategy: MatchStrategy) -> Dict[str, Any]:
+                              transaction_date: date | None,
+                              strategy: MatchStrategy) -> dict[str, Any]:
         """Calculate match score between expense and transaction."""
         try:
             scores = {
@@ -303,11 +302,11 @@ class ExpenseTransactionMatcher:
                 'merchant_score': 0.0,
                 'description_score': 0.0
             }
-            
+
             # Amount score (most important)
             amount_diff = abs(expense_amount - transaction_amount)
             amount_tolerance = expense_amount * Decimal(str(self.config['amount_tolerance_percentage']))
-            
+
             if amount_diff == 0:
                 scores['amount_score'] = 1.0
             elif amount_diff <= amount_tolerance:
@@ -318,11 +317,11 @@ class ExpenseTransactionMatcher:
                 scores['amount_score'] = 0.6
             else:
                 scores['amount_score'] = 0.0
-            
+
             # Date score
             if transaction_date and expense_date:
                 date_diff = abs((expense_date - transaction_date).days)
-                
+
                 if date_diff == 0:
                     scores['date_score'] = 1.0
                 elif date_diff <= self.config['exact_match_tolerance_days']:
@@ -331,11 +330,11 @@ class ExpenseTransactionMatcher:
                     scores['date_score'] = 0.7
                 else:
                     scores['date_score'] = 0.3
-            
+
             # Reference score
             expense_ref = self._extract_reference(expense.get('notes', ''))
             transaction_ref = transaction.get('reference', '')
-            
+
             if expense_ref and transaction_ref:
                 if expense_ref.lower() == transaction_ref.lower():
                     scores['reference_score'] = 1.0
@@ -343,27 +342,27 @@ class ExpenseTransactionMatcher:
                     scores['reference_score'] = 0.8
                 else:
                     scores['reference_score'] = 0.0
-            
+
             # Merchant/counterparty score
             merchant_name = expense.get('merchant_text', '') or expense.get('merchant_canonical', '')
             counterparty = transaction.get('counterparty', '')
-            
+
             if merchant_name and counterparty:
                 merchant_score = self._calculate_text_similarity(merchant_name, counterparty)
                 scores['merchant_score'] = merchant_score
-            
+
             # Description score
             expense_desc = expense.get('notes', '')
             transaction_desc = transaction.get('description', '') or transaction.get('raw_desc', '')
-            
+
             if expense_desc and transaction_desc:
                 desc_score = self._calculate_text_similarity(expense_desc, transaction_desc)
                 scores['description_score'] = desc_score
-            
+
             # Calculate weighted total score based on strategy
             weights = self._get_strategy_weights(strategy)
-            total_score = sum(scores[key] * weights.get(key, 0) for key in scores.keys())
-            
+            total_score = sum(scores[key] * weights.get(key, 0) for key in scores)
+
             return {
                 'total_score': total_score,
                 'component_scores': scores,
@@ -371,7 +370,7 @@ class ExpenseTransactionMatcher:
                 'amount_diff': float(amount_diff),
                 'date_diff': abs((expense_date - transaction_date).days) if transaction_date else None
             }
-            
+
         except Exception as e:
             self.logger.error(f"Match score calculation failed: {e}")
             return {
@@ -380,8 +379,8 @@ class ExpenseTransactionMatcher:
                 'weights': {},
                 'error': str(e)
             }
-    
-    def _get_strategy_weights(self, strategy: MatchStrategy) -> Dict[str, float]:
+
+    def _get_strategy_weights(self, strategy: MatchStrategy) -> dict[str, float]:
         """Get scoring weights for different strategies."""
         if strategy == MatchStrategy.AMOUNT_DATE_REFERENCE:
             return {
@@ -432,13 +431,13 @@ class ExpenseTransactionMatcher:
                 'merchant_score': 0.1,
                 'description_score': 0.05
             }
-    
-    def _extract_reference(self, text: str) -> Optional[str]:
+
+    def _extract_reference(self, text: str) -> str | None:
         """Extract reference number from text."""
         try:
             if not text:
                 return None
-            
+
             # Look for reference patterns
             patterns = [
                 r'ref[:\s]*([A-Z0-9\-]{5,20})',
@@ -447,42 +446,42 @@ class ExpenseTransactionMatcher:
                 r'([A-Z0-9]{10,})',  # Long alphanumeric sequences
                 r'([0-9]{8,})'  # Long numeric sequences
             ]
-            
+
             for pattern in patterns:
                 match = re.search(pattern, text, re.IGNORECASE)
                 if match:
                     return match.group(1)
-            
+
             return None
-            
+
         except Exception:
             return None
-    
+
     def _calculate_text_similarity(self, text1: str, text2: str) -> float:
         """Calculate similarity between two text strings."""
         try:
             if not text1 or not text2:
                 return 0.0
-            
+
             # Simple similarity based on common words
             words1 = set(re.findall(r'\w+', text1.lower()))
             words2 = set(re.findall(r'\w+', text2.lower()))
-            
+
             if not words1 or not words2:
                 return 0.0
-            
+
             intersection = words1.intersection(words2)
             union = words1.union(words2)
-            
+
             return len(intersection) / len(union) if union else 0.0
-            
+
         except Exception:
             return 0.0
-    
-    def _process_matches(self, 
-                        matches: List[Dict[str, Any]], 
+
+    def _process_matches(self,
+                        matches: list[dict[str, Any]],
                         session_id: int,
-                        auto_accept: bool) -> Dict[str, Any]:
+                        auto_accept: bool) -> dict[str, Any]:
         """Process and store matches."""
         try:
             results = {
@@ -494,19 +493,19 @@ class ExpenseTransactionMatcher:
                 'auto_accepted': 0,
                 'match_details': []
             }
-            
+
             for match in matches:
                 expense = match['expense']
                 transaction = match['transaction']
                 match_type = match['match_type']
-                
+
                 # Determine if auto-accept
                 should_auto_accept = (
-                    auto_accept and 
+                    auto_accept and
                     match_type in [MatchType.EXACT, MatchType.PROBABLE] and
                     match['score'] >= self.config['auto_accept_probable_threshold']
                 )
-                
+
                 # Store match
                 match_id = self.db.execute("""
                     INSERT INTO sa_reconciliation_matches 
@@ -514,12 +513,12 @@ class ExpenseTransactionMatcher:
                      auto_matched, user_confirmed, match_details_json)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
-                    expense['id'], transaction['id'], match_type.value, 
+                    expense['id'], transaction['id'], match_type.value,
                     match['strategy'].value, match['score'],
                     should_auto_accept, should_auto_accept,
                     json.dumps(match['details'])
                 ))
-                
+
                 # Update expense with transaction reference
                 if should_auto_accept:
                     self.db.execute("""
@@ -530,14 +529,14 @@ class ExpenseTransactionMatcher:
                         END
                         WHERE id = ?
                     """, (transaction['id'], transaction['id'], expense['id']))
-                    
+
                     # Update transaction with expense reference
                     self.db.execute("""
                         UPDATE sa_transactions 
                         SET matched_expense_id = ?
                         WHERE id = ?
                     """, (expense['id'], transaction['id']))
-                
+
                 # Count results
                 if match_type == MatchType.EXACT:
                     results['exact_matches'] += 1
@@ -545,10 +544,10 @@ class ExpenseTransactionMatcher:
                     results['probable_matches'] += 1
                 else:
                     results['needs_review'] += 1
-                
+
                 if should_auto_accept:
                     results['auto_accepted'] += 1
-                
+
                 # Add to details (limited info for response)
                 results['match_details'].append({
                     'match_id': match_id,
@@ -564,9 +563,9 @@ class ExpenseTransactionMatcher:
                     'merchant': expense.get('merchant_text', ''),
                     'counterparty': transaction.get('counterparty', '')
                 })
-            
+
             return results
-            
+
         except Exception as e:
             self.logger.error(f"Match processing failed: {e}")
             return {
@@ -579,17 +578,17 @@ class ExpenseTransactionMatcher:
                 'match_details': [],
                 'error': str(e)
             }
-    
-    def _update_session_results(self, 
-                               session_id: int, 
-                               total_expenses: int, 
-                               total_transactions: int, 
-                               results: Dict[str, Any]):
+
+    def _update_session_results(self,
+                               session_id: int,
+                               total_expenses: int,
+                               total_transactions: int,
+                               results: dict[str, Any]):
         """Update reconciliation session with results."""
         try:
             unmatched_expenses = total_expenses - results['exact_matches'] - results['probable_matches'] - results['needs_review']
             unmatched_transactions = total_transactions - results['exact_matches'] - results['probable_matches'] - results['needs_review']
-            
+
             self.db.execute("""
                 UPDATE sa_reconciliation_sessions 
                 SET total_expenses = ?, total_transactions = ?,
@@ -603,11 +602,11 @@ class ExpenseTransactionMatcher:
                 unmatched_expenses, unmatched_transactions,
                 session_id
             ))
-            
+
         except Exception as e:
             self.logger.error(f"Session update failed: {e}")
-    
-    def get_pending_matches(self, user_id: str, limit: int = 50) -> List[Dict[str, Any]]:
+
+    def get_pending_matches(self, user_id: str, limit: int = 50) -> list[dict[str, Any]]:
         """Get matches that need user review.
         
         Args:
@@ -636,7 +635,7 @@ class ExpenseTransactionMatcher:
                 ORDER BY rm.confidence_score DESC, rm.created_at
                 LIMIT ?
             """, (user_id, limit))
-            
+
             return [
                 {
                     'match_id': match['id'],
@@ -660,12 +659,12 @@ class ExpenseTransactionMatcher:
                 }
                 for match in pending_matches
             ]
-            
+
         except Exception as e:
             self.logger.error(f"Get pending matches failed: {e}")
             return []
-    
-    def confirm_match(self, match_id: int, user_id: str) -> Dict[str, Any]:
+
+    def confirm_match(self, match_id: int, user_id: str) -> dict[str, Any]:
         """Confirm a pending match.
         
         Args:
@@ -683,13 +682,13 @@ class ExpenseTransactionMatcher:
                 JOIN sa_expenses e ON rm.expense_id = e.id
                 WHERE rm.id = ? AND e.user_id = ?
             """, (match_id, user_id))
-            
+
             if not match:
                 return {
                     'success': False,
                     'error': 'Match not found or access denied'
                 }
-            
+
             # Update match as confirmed
             self.db.execute("""
                 UPDATE sa_reconciliation_matches 
@@ -697,7 +696,7 @@ class ExpenseTransactionMatcher:
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
             """, (match_id,))
-            
+
             # Update expense and transaction links
             self.db.execute("""
                 UPDATE sa_expenses 
@@ -707,13 +706,13 @@ class ExpenseTransactionMatcher:
                 END
                 WHERE id = ?
             """, (match['transaction_id'], match['transaction_id'], match['expense_id']))
-            
+
             self.db.execute("""
                 UPDATE sa_transactions 
                 SET matched_expense_id = ?
                 WHERE id = ?
             """, (match['expense_id'], match['transaction_id']))
-            
+
             return {
                 'success': True,
                 'match_id': match_id,
@@ -721,15 +720,15 @@ class ExpenseTransactionMatcher:
                 'transaction_id': match['transaction_id'],
                 'status': 'confirmed'
             }
-            
+
         except Exception as e:
             self.logger.error(f"Confirm match failed: {e}")
             return {
                 'success': False,
                 'error': str(e)
             }
-    
-    def reject_match(self, match_id: int, user_id: str) -> Dict[str, Any]:
+
+    def reject_match(self, match_id: int, user_id: str) -> dict[str, Any]:
         """Reject a pending match.
         
         Args:
@@ -747,13 +746,13 @@ class ExpenseTransactionMatcher:
                 JOIN sa_expenses e ON rm.expense_id = e.id
                 WHERE rm.id = ? AND e.user_id = ?
             """, (match_id, user_id))
-            
+
             if not match:
                 return {
                     'success': False,
                     'error': 'Match not found or access denied'
                 }
-            
+
             # Update match as rejected
             self.db.execute("""
                 UPDATE sa_reconciliation_matches 
@@ -761,21 +760,21 @@ class ExpenseTransactionMatcher:
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
             """, (match_id,))
-            
+
             return {
                 'success': True,
                 'match_id': match_id,
                 'status': 'rejected'
             }
-            
+
         except Exception as e:
             self.logger.error(f"Reject match failed: {e}")
             return {
                 'success': False,
                 'error': str(e)
             }
-    
-    def get_reconciliation_summary(self, user_id: str) -> Dict[str, Any]:
+
+    def get_reconciliation_summary(self, user_id: str) -> dict[str, Any]:
         """Get overall reconciliation summary for user.
         
         Args:
@@ -799,7 +798,7 @@ class ExpenseTransactionMatcher:
                 JOIN sa_expenses e ON rm.expense_id = e.id
                 WHERE e.user_id = ?
             """, (user_id,))
-            
+
             # Get unmatched counts
             unmatched_expenses = self.db.query_one("""
                 SELECT COUNT(*) as count
@@ -807,7 +806,7 @@ class ExpenseTransactionMatcher:
                 LEFT JOIN sa_reconciliation_matches rm ON e.id = rm.expense_id
                 WHERE e.user_id = ? AND rm.id IS NULL
             """, (user_id,))
-            
+
             unmatched_transactions = self.db.query_one("""
                 SELECT COUNT(*) as count
                 FROM sa_transactions t
@@ -815,7 +814,7 @@ class ExpenseTransactionMatcher:
                 LEFT JOIN sa_reconciliation_matches rm ON t.id = rm.transaction_id
                 WHERE (s.user_id = ? OR ? IS NULL) AND rm.id IS NULL
             """, (user_id, user_id))
-            
+
             # Get recent sessions
             recent_sessions = self.db.query_all("""
                 SELECT * FROM sa_reconciliation_sessions
@@ -823,7 +822,7 @@ class ExpenseTransactionMatcher:
                 ORDER BY created_at DESC
                 LIMIT 5
             """, (user_id,))
-            
+
             return {
                 'total_matches': stats['total_matches'] or 0,
                 'exact_matches': stats['exact_matches'] or 0,
@@ -850,7 +849,7 @@ class ExpenseTransactionMatcher:
                     for session in recent_sessions
                 ]
             }
-            
+
         except Exception as e:
             self.logger.error(f"Reconciliation summary failed: {e}")
             return {

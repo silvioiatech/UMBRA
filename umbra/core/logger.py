@@ -2,13 +2,13 @@
 JSON logging configuration for Umbra bot with request tracking.
 Provides structured logs with request_id, user_id, module, action for Railway deployment.
 """
-import logging
 import json
-import uuid
+import logging
 import sys
-from datetime import datetime, timezone
-from typing import Optional, Dict, Any
+import uuid
 from contextvars import ContextVar
+from datetime import UTC, datetime
+from typing import Any
 
 # Context variables for tracking request context
 request_id_context: ContextVar[str] = ContextVar('request_id', default='')
@@ -18,24 +18,24 @@ action_context: ContextVar[str] = ContextVar('action', default='')
 
 class JSONFormatter(logging.Formatter):
     """Custom JSON formatter with structured fields for Railway logs."""
-    
+
     def format(self, record: logging.LogRecord) -> str:
         """Format log record as JSON with required fields."""
-        
+
         # Base log structure
         log_entry = {
-            "ts": datetime.now(timezone.utc).isoformat(),
+            "ts": datetime.now(UTC).isoformat(),
             "level": record.levelname,
             "msg": record.getMessage(),
             "logger": record.name
         }
-        
+
         # Add context fields
         request_id = request_id_context.get('')
         user_id = user_id_context.get(0)
         module_name = module_context.get('')
         action = action_context.get('')
-        
+
         if request_id:
             log_entry["request_id"] = request_id
         if user_id:
@@ -44,11 +44,11 @@ class JSONFormatter(logging.Formatter):
             log_entry["umbra_module"] = module_name  # Renamed to avoid conflict
         if action:
             log_entry["action"] = action
-        
+
         # Add exception info if present
         if record.exc_info:
             log_entry["exception"] = self.formatException(record.exc_info)
-        
+
         # Add extra fields from record
         for key, value in record.__dict__.items():
             if key not in {'name', 'msg', 'args', 'levelname', 'levelno', 'pathname',
@@ -57,49 +57,49 @@ class JSONFormatter(logging.Formatter):
                           'processName', 'process', 'message', 'exc_info',
                           'exc_text', 'stack_info'}:
                 log_entry[key] = value
-        
+
         return json.dumps(log_entry, ensure_ascii=False, separators=(',', ':'))
 
-def setup_logging(level: str = "INFO", log_file: Optional[str] = None) -> None:
+def setup_logging(level: str = "INFO", log_file: str | None = None) -> None:
     """Setup structured JSON logging configuration for production."""
-    
+
     # Convert string level to logging constant
     numeric_level = getattr(logging, level.upper(), logging.INFO)
-    
+
     # Setup root logger
     root_logger = logging.getLogger()
     root_logger.setLevel(numeric_level)
-    
+
     # Clear existing handlers
     root_logger.handlers.clear()
-    
+
     # Create JSON formatter
     json_formatter = JSONFormatter()
-    
+
     # Console handler with JSON formatting
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(numeric_level)
     console_handler.setFormatter(json_formatter)
     root_logger.addHandler(console_handler)
-    
+
     # File handler (optional) - also JSON formatted
     if log_file:
         from pathlib import Path
         log_path = Path(log_file)
         log_path.parent.mkdir(parents=True, exist_ok=True)
-        
+
         file_handler = logging.FileHandler(log_path)
         file_handler.setLevel(numeric_level)
         file_handler.setFormatter(json_formatter)
         root_logger.addHandler(file_handler)
-    
+
     # Reduce noise from external libraries
     logging.getLogger('httpx').setLevel(logging.WARNING)
     logging.getLogger('telegram').setLevel(logging.WARNING)
     logging.getLogger('urllib3').setLevel(logging.WARNING)
     logging.getLogger('aiohttp').setLevel(logging.WARNING)
     logging.getLogger('asyncio').setLevel(logging.WARNING)
-    
+
     # Log startup message
     logger = logging.getLogger('umbra.core.logger')
     logger.info("JSON logging configured", extra={"level": level})
@@ -109,12 +109,12 @@ def get_logger(name: str) -> logging.Logger:
     return logging.getLogger(name)
 
 # Context management utilities
-def set_request_context(request_id: Optional[str] = None, user_id: Optional[int] = None, 
-                       module: Optional[str] = None, action: Optional[str] = None) -> str:
+def set_request_context(request_id: str | None = None, user_id: int | None = None,
+                       module: str | None = None, action: str | None = None) -> str:
     """Set request context for logging. Returns the request_id."""
     if request_id is None:
         request_id = str(uuid.uuid4())
-    
+
     request_id_context.set(request_id)
     if user_id is not None:
         user_id_context.set(user_id)
@@ -122,7 +122,7 @@ def set_request_context(request_id: Optional[str] = None, user_id: Optional[int]
         module_context.set(module)
     if action is not None:
         action_context.set(action)
-    
+
     return request_id
 
 def clear_request_context():
@@ -138,14 +138,14 @@ def get_current_request_id() -> str:
 
 class RequestContextLogger:
     """Logger wrapper that automatically includes request context."""
-    
+
     def __init__(self, logger: logging.Logger):
         self.logger = logger
-    
+
     def _log_with_context(self, level: int, msg: str, **kwargs):
         """Log with automatic context inclusion."""
         extra = kwargs.get('extra', {})
-        
+
         # Add current context if not already specified
         if not extra.get('request_id'):
             extra['request_id'] = request_id_context.get('')
@@ -161,22 +161,22 @@ class RequestContextLogger:
             action = action_context.get('')
             if action:
                 extra['action'] = action
-        
+
         kwargs['extra'] = extra
         self.logger._log(level, msg, (), **kwargs)
-    
+
     def debug(self, msg: str, **kwargs):
         self._log_with_context(logging.DEBUG, msg, **kwargs)
-    
+
     def info(self, msg: str, **kwargs):
         self._log_with_context(logging.INFO, msg, **kwargs)
-    
+
     def warning(self, msg: str, **kwargs):
         self._log_with_context(logging.WARNING, msg, **kwargs)
-    
+
     def error(self, msg: str, **kwargs):
         self._log_with_context(logging.ERROR, msg, **kwargs)
-    
+
     def critical(self, msg: str, **kwargs):
         self._log_with_context(logging.CRITICAL, msg, **kwargs)
 
@@ -189,7 +189,7 @@ def sanitize_log_data(data: str) -> str:
     sensitive_patterns = [
         'token', 'key', 'secret', 'password', 'auth'
     ]
-    
+
     sanitized = data
     for pattern in sensitive_patterns:
         if pattern.lower() in sanitized.lower():
@@ -198,13 +198,13 @@ def sanitize_log_data(data: str) -> str:
                 sanitized = sanitized[:4] + '*' * (len(sanitized) - 8) + sanitized[-4:]
             else:
                 sanitized = '*' * len(sanitized)
-    
+
     return sanitized
 
-def log_api_request(logger: logging.Logger, method: str, url: str, 
-                   status_code: Optional[int] = None, 
-                   duration_ms: Optional[float] = None,
-                   error: Optional[str] = None):
+def log_api_request(logger: logging.Logger, method: str, url: str,
+                   status_code: int | None = None,
+                   duration_ms: float | None = None,
+                   error: str | None = None):
     """Log API request with structured data."""
     log_data = {
         "event": "api_request",
@@ -213,16 +213,16 @@ def log_api_request(logger: logging.Logger, method: str, url: str,
         "status_code": status_code,
         "duration_ms": duration_ms
     }
-    
+
     if error:
         log_data["error"] = error
         logger.error("API request failed", extra=log_data)
     else:
         logger.info("API request completed", extra=log_data)
 
-def log_user_action(logger: logging.Logger, user_id: int, action: str, 
-                   module: str, success: bool = True, 
-                   details: Optional[Dict[str, Any]] = None):
+def log_user_action(logger: logging.Logger, user_id: int, action: str,
+                   module: str, success: bool = True,
+                   details: dict[str, Any] | None = None):
     """Log user action with structured data."""
     log_data = {
         "event": "user_action",
@@ -231,10 +231,10 @@ def log_user_action(logger: logging.Logger, user_id: int, action: str,
         "module": module,
         "success": success
     }
-    
+
     if details:
         log_data.update(details)
-    
+
     if success:
         logger.info("User action completed", extra=log_data)
     else:
@@ -242,11 +242,11 @@ def log_user_action(logger: logging.Logger, user_id: int, action: str,
 
 # Export all public functions
 __all__ = [
-    "setup_logging", 
-    "get_logger", 
+    "setup_logging",
+    "get_logger",
     "get_context_logger",
-    "set_request_context", 
-    "clear_request_context", 
+    "set_request_context",
+    "clear_request_context",
     "get_current_request_id",
     "RequestContextLogger",
     "sanitize_log_data",
