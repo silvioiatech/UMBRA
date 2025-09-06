@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
-from ..core.logger import get_context_logger
+from umbra.core.logger import get_context_logger
 
 logger = get_context_logger(__name__)
 

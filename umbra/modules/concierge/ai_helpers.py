@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
-from ..core.redact import DataRedactor
+from ...core.redact import DataRedactor
 
 
 class LogSeverity(Enum):

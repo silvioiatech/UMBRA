@@ -16,16 +16,16 @@ from typing import Any
 from ..core.approvals import ApprovalManager
 from ..core.logger import get_context_logger
 from ..core.redact import DataRedactor
-from .ai_helpers import AIHelpers
-from .docker_ops import DockerOps
-from .exec_ops import ExecOps, ExecutionRequest
-from .files_ops import FileOps
-from .instances_ops import InstanceCreateRequest, InstancesRegistry
-from .patch_ops import PatchOps
-from .risk import RiskClassifier
-from .system_ops import SystemOps
-from .update_watcher import UpdateWatcher
-from .validators import Validators
+from .concierge.ai_helpers import AIHelpers
+from .concierge.docker_ops import DockerOps
+from .concierge.exec_ops import ExecOps, ExecutionRequest
+from .concierge.files_ops import FileOps
+from .concierge.instances_ops import InstanceCreateRequest, InstancesRegistry
+from .concierge.patch_ops import PatchOps
+from .concierge.risk import RiskClassifier
+from .concierge.system_ops import SystemOps
+from .concierge.update_watcher import UpdateWatcher
+from .concierge.validators import Validators
 
 
 class ConciergeMCP:

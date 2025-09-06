@@ -4,6 +4,7 @@ Adapted from working implementation with F3R1 AI Agent interface.
 """
 import asyncio
 import time
+from enum import Enum
 
 import httpx
 
@@ -11,6 +12,14 @@ from ..ai.agent import AgentCapability, AgentRequest, AgentResponse, AIProvider
 from ..core.logger import get_context_logger
 
 logger = get_context_logger(__name__)
+
+
+class ModelRole(Enum):
+    """Model roles for different types of operations."""
+    PLANNER = "planner"
+    BUILDER = "builder"
+    CONTROLLER = "controller"
+    CHAT = "chat"
 
 class OpenRouterProvider(AIProvider):
     """OpenRouter API provider with F3R1 AI Agent interface."""
@@ -322,5 +331,8 @@ class OpenRouterProvider(AIProvider):
             "stability-ai/stable-diffusion-xl"
         ]
 
+# Legacy alias for compatibility  
+OpenRouterClient = OpenRouterProvider
+
 # Export
-__all__ = ["OpenRouterProvider"]
+__all__ = ["OpenRouterProvider", "OpenRouterClient", "ModelRole"]
