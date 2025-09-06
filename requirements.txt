@@ -100,8 +100,6 @@ requests-cache==1.2.0
 typing-extensions==4.9.0
 
 # ========================================
-# TESTING DEPENDENCIES
+# PRODUCTION RUNTIME
 # ========================================
-pytest==8.0.0
-pytest-asyncio==0.23.5
-pytest-cov==4.0.0
+# All production dependencies listed above
