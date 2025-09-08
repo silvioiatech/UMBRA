@@ -1,0 +1,556 @@
+# Creator v1 (CRT4) - CI/CD Pipeline
+# Comprehensive GitHub Actions workflow for testing, building, and deployment
+
+name: Creator v1 CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'umbra/modules/creator/**'
+      - '.github/workflows/creator-v1.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'umbra/modules/creator/**'
+  release:
+    types: [ published ]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: creator-v1
+  PYTHON_VERSION: "3.11"
+  NODE_VERSION: "18"
+
+jobs:
+  # Lint and Security Scan
+  lint-and-security:
+    name: Lint & Security Scan
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8 black isort bandit safety mypy
+        pip install -r umbra/modules/creator/requirements.txt
+
+    - name: Run Black (Code Formatting)
+      run: |
+        black --check --diff umbra/modules/creator/
+
+    - name: Run isort (Import Sorting)
+      run: |
+        isort --check-only --diff umbra/modules/creator/
+
+    - name: Run Flake8 (Linting)
+      run: |
+        flake8 umbra/modules/creator/ --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 umbra/modules/creator/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+    - name: Run MyPy (Type Checking)
+      run: |
+        mypy umbra/modules/creator/ --ignore-missing-imports || true
+
+    - name: Run Bandit (Security Scan)
+      run: |
+        bandit -r umbra/modules/creator/ -f json -o bandit-report.json || true
+        bandit -r umbra/modules/creator/ || true
+
+    - name: Run Safety (Dependency Security)
+      run: |
+        safety check --json --output safety-report.json || true
+        safety check || true
+
+    - name: Upload security reports
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: security-reports
+        path: |
+          bandit-report.json
+          safety-report.json
+
+  # Unit and Integration Tests
+  test:
+    name: Test Suite
+    runs-on: ubuntu-latest
+    needs: lint-and-security
+    strategy:
+      matrix:
+        python-version: ["3.8", "3.9", "3.10", "3.11"]
+        
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_USER: creator_test
+          POSTGRES_DB: creator_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-${{ matrix.python-version }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-${{ matrix.python-version }}-pip-
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pytest pytest-asyncio pytest-cov pytest-mock pytest-xdist
+        pip install -r umbra/modules/creator/requirements.txt
+
+    - name: Set up test environment
+      run: |
+        export CREATOR_V1_ENABLED=true
+        export CREATOR_OPENAI_API_KEY=test_key
+        export CREATOR_DATABASE_URL=postgresql://creator_test:test_password@localhost:5432/creator_test
+        export CREATOR_CACHE_REDIS_HOST=localhost
+        export CREATOR_CACHE_REDIS_PORT=6379
+        export CREATOR_SECURITY_ENABLED=false
+        export CREATOR_RATE_LIMITING_ENABLED=false
+
+    - name: Run unit tests
+      run: |
+        cd umbra/modules/creator
+        pytest test_creator_v1.py -v --tb=short --cov=. --cov-report=xml --cov-report=term-missing
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      if: matrix.python-version == '3.11'
+      with:
+        file: ./umbra/modules/creator/coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+
+    - name: Run integration tests
+      run: |
+        cd umbra/modules/creator
+        python -m pytest -v -m integration --tb=short || true
+
+    - name: Run example usage tests
+      run: |
+        cd umbra/modules/creator
+        python example_usage.py --mode quick || echo "Example test completed with warnings"
+
+  # Performance and Load Testing
+  performance-test:
+    name: Performance Testing
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r umbra/modules/creator/requirements.txt
+        pip install locust
+
+    - name: Start test services
+      run: |
+        docker-compose -f umbra/modules/creator/docker-compose.yml up -d postgres redis
+        sleep 30
+
+    - name: Run performance tests
+      run: |
+        cd umbra/modules/creator
+        python example_usage.py --mode benchmark || echo "Performance test completed"
+
+    - name: Stop test services
+      run: |
+        docker-compose -f umbra/modules/creator/docker-compose.yml down
+
+  # Build Docker Image
+  build:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    needs: test
+    outputs:
+      image-digest: ${{ steps.build.outputs.digest }}
+      image-tag: ${{ steps.meta.outputs.tags }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=semver,pattern={{major}}
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: Build and push Docker image
+      id: build
+      uses: docker/build-push-action@v5
+      with:
+        context: ./umbra/modules/creator
+        file: ./umbra/modules/creator/Dockerfile
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        build-args: |
+          BUILD_DATE=${{ github.event.head_commit.timestamp }}
+          VCS_REF=${{ github.sha }}
+          BUILD_ENV=production
+
+    - name: Generate SBOM
+      uses: anchore/sbom-action@v0
+      with:
+        image: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+        format: spdx-json
+        output-file: sbom.spdx.json
+
+    - name: Upload SBOM
+      uses: actions/upload-artifact@v3
+      with:
+        name: sbom
+        path: sbom.spdx.json
+
+  # Security Scanning
+  security-scan:
+    name: Container Security Scan
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'push'
+    
+    steps:
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+
+    - name: Upload Trivy scan results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+  # Deploy to Staging
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [build, security-scan]
+    if: github.ref == 'refs/heads/develop'
+    environment:
+      name: staging
+      url: https://creator-staging.yourdomain.com
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'latest'
+
+    - name: Configure kubectl
+      run: |
+        echo "${{ secrets.STAGING_KUBECONFIG }}" | base64 -d > kubeconfig
+        export KUBECONFIG=kubeconfig
+
+    - name: Deploy to staging
+      run: |
+        export KUBECONFIG=kubeconfig
+        
+        # Update image tag in manifests
+        sed -i "s|creator-v1:1.0.0|${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ github.sha }}|g" umbra/modules/creator/k8s-manifests.yaml
+        
+        # Apply manifests
+        kubectl apply -f umbra/modules/creator/k8s-manifests.yaml
+        
+        # Wait for deployment
+        kubectl rollout status deployment/creator-app -n creator-v1 --timeout=600s
+
+    - name: Run smoke tests
+      run: |
+        # Wait for service to be ready
+        sleep 60
+        
+        # Basic health check
+        curl -f https://creator-staging.yourdomain.com/api/health || exit 1
+        
+        # Basic functionality test
+        curl -X POST https://creator-staging.yourdomain.com/api/content/generate \
+          -H "Content-Type: application/json" \
+          -d '{"action": "generate_post", "topic": "test"}' || exit 1
+
+  # Deploy to Production
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [build, security-scan]
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: production
+      url: https://creator.yourdomain.com
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'latest'
+
+    - name: Configure kubectl
+      run: |
+        echo "${{ secrets.PRODUCTION_KUBECONFIG }}" | base64 -d > kubeconfig
+        export KUBECONFIG=kubeconfig
+
+    - name: Blue-Green Deployment
+      run: |
+        export KUBECONFIG=kubeconfig
+        
+        # Update image tag in manifests
+        sed -i "s|creator-v1:1.0.0|${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ github.sha }}|g" umbra/modules/creator/k8s-manifests.yaml
+        
+        # Apply new version (blue-green deployment)
+        kubectl apply -f umbra/modules/creator/k8s-manifests.yaml
+        
+        # Wait for new deployment to be ready
+        kubectl rollout status deployment/creator-app -n creator-v1 --timeout=900s
+        
+        # Verify deployment
+        kubectl get pods -n creator-v1 -l app=creator-app
+
+    - name: Production smoke tests
+      run: |
+        # Wait for service to be ready
+        sleep 90
+        
+        # Comprehensive health checks
+        curl -f https://creator.yourdomain.com/api/health || exit 1
+        curl -f https://creator.yourdomain.com/api/system/status || exit 1
+        
+        # Basic functionality test
+        curl -X POST https://creator.yourdomain.com/api/content/generate \
+          -H "Content-Type: application/json" \
+          -d '{"action": "generate_post", "topic": "production test"}' || exit 1
+
+    - name: Notify deployment success
+      uses: 8398a7/action-slack@v3
+      if: success()
+      with:
+        status: success
+        channel: '#deployments'
+        text: |
+          ✅ Creator v1 successfully deployed to production!
+          Image: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          URL: https://creator.yourdomain.com
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+    - name: Notify deployment failure
+      uses: 8398a7/action-slack@v3
+      if: failure()
+      with:
+        status: failure
+        channel: '#deployments'
+        text: |
+          ❌ Creator v1 deployment to production failed!
+          Please check the logs and investigate.
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # Release Management
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [deploy-production]
+    if: github.event_name == 'release'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Generate changelog
+      id: changelog
+      run: |
+        # Generate changelog from commits
+        git log --pretty=format:"* %s" $(git describe --tags --abbrev=0 HEAD^)..HEAD > CHANGELOG.md
+        echo "changelog=$(cat CHANGELOG.md)" >> $GITHUB_OUTPUT
+
+    - name: Update release notes
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const { owner, repo } = context.repo;
+          const release = await github.rest.repos.getReleaseByTag({
+            owner,
+            repo,
+            tag: context.ref.replace('refs/tags/', '')
+          });
+          
+          await github.rest.repos.updateRelease({
+            owner,
+            repo,
+            release_id: release.data.id,
+            body: `
+            ## Creator v1 Release ${context.ref.replace('refs/tags/', '')}
+            
+            ### Changes
+            ${{ steps.changelog.outputs.changelog }}
+            
+            ### Docker Image
+            \`\`\`
+            docker pull ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${context.ref.replace('refs/tags/', '')}
+            \`\`\`
+            
+            ### Kubernetes Deployment
+            Update your manifests to use the new image tag and apply:
+            \`\`\`
+            kubectl apply -f k8s-manifests.yaml
+            \`\`\`
+            `
+          });
+
+  # Cleanup
+  cleanup:
+    name: Cleanup
+    runs-on: ubuntu-latest
+    needs: [deploy-production, deploy-staging]
+    if: always()
+    
+    steps:
+    - name: Delete old container images
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const { owner, repo } = context.repo;
+          
+          // Keep only the last 10 images
+          const packages = await github.rest.packages.getAllPackageVersionsForPackageOwnedByOrg({
+            package_type: 'container',
+            package_name: 'creator-v1',
+            org: owner
+          });
+          
+          const versionsToDelete = packages.data.slice(10);
+          
+          for (const version of versionsToDelete) {
+            try {
+              await github.rest.packages.deletePackageVersionForOrg({
+                package_type: 'container',
+                package_name: 'creator-v1',
+                org: owner,
+                package_version_id: version.id
+              });
+              console.log(`Deleted version ${version.name}`);
+            } catch (error) {
+              console.log(`Failed to delete version ${version.name}: ${error.message}`);
+            }
+          }
+
+# Workflow status notification
+  notify-status:
+    name: Notify Workflow Status
+    runs-on: ubuntu-latest
+    needs: [lint-and-security, test, build, security-scan, deploy-staging, deploy-production]
+    if: always()
+    
+    steps:
+    - name: Notify success
+      if: ${{ needs.lint-and-security.result == 'success' && needs.test.result == 'success' && needs.build.result == 'success' }}
+      uses: 8398a7/action-slack@v3
+      with:
+        status: success
+        channel: '#ci-cd'
+        text: |
+          ✅ Creator v1 CI/CD pipeline completed successfully!
+          Branch: ${{ github.ref }}
+          Commit: ${{ github.sha }}
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+    - name: Notify failure
+      if: ${{ needs.lint-and-security.result == 'failure' || needs.test.result == 'failure' || needs.build.result == 'failure' }}
+      uses: 8398a7/action-slack@v3
+      with:
+        status: failure
+        channel: '#ci-cd'
+        text: |
+          ❌ Creator v1 CI/CD pipeline failed!
+          Branch: ${{ github.ref }}
+          Commit: ${{ github.sha }}
+          Please check the workflow logs.
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

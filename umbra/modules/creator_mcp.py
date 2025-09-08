@@ -1,705 +1,795 @@
 """
-Creator MCP - Multi-API Content Creator
-Creates videos, images, documents using different APIs
+Creator MCP v1 - Omnimedia Content Generator
+
+Brand-aware omnimedia generator supporting text, images, video, audio/voice, music, 
+code/sites, and 3D/AR assets with agent orchestration and platform guardrails.
 """
+
+import asyncio
 import json
-from datetime import datetime
-from typing import Any
+import logging
+from typing import Any, Dict, List, Optional, Union
+from dataclasses import dataclass, asdict
 
-import httpx
+from ..ai.agent import UmbraAIAgent
+from ..core.config import UmbraConfig
+from ..storage.r2_client import R2Client
+from .creator.service import CreatorService
+from .creator.media_image import ImageGenerator
+from .creator.media_video import VideoGenerator
+from .creator.media_audio import AudioGenerator
+from .creator.codegen import CodeGenerator
+from .creator.infographic import InfographicGenerator
+from .creator.rag import RAGManager
+from .creator.seo import SEOManager
+from .creator.connectors import ConnectorManager
+from .creator.templates import TemplateManager
+from .creator.voice import BrandVoiceManager
+from .creator.presets import PlatformPresets
+from .creator.export import ExportManager
+from .creator.validate import ContentValidator
+from .creator.model_provider_enhanced import EnhancedModelProviderManager
+from .creator.errors import CreatorError, ValidationError
 
-from ..core.envelope import InternalEnvelope
-from ..core.module_base import ModuleBase
+logger = logging.getLogger(__name__)
 
+@dataclass
+class CreatorCapabilities:
+    """Creator module capabilities"""
+    name: str = "creator"
+    description: str = "Omnimedia content generator with brand awareness"
+    version: str = "1.0.0"
+    
+    actions: List[str] = None
+    
+    def __post_init__(self):
+        if self.actions is None:
+            self.actions = [
+                # Orchestration & Validation
+                "auto",
+                "ingest_media", 
+                "estimate",
+                "validate",
+                
+                # Text Generation
+                "generate_post",
+                "content_pack",
+                "rewrite",
+                "summarize",
+                "hashtags",
+                "title_variations",
+                "render_template",
+                "list_templates",
+                "upsert_template",
+                
+                # Image Generation
+                "generate_image",
+                "edit_image",
+                "infographic",
+                
+                # Audio/Video/Music
+                "asr_transcribe",
+                "subtitle",
+                "video_anonymize",
+                "generate_video",
+                "tts_register_voice",
+                "tts_speak",
+                "music_generate",
+                
+                # Code/Sites & Connectors
+                "generate_site",
+                "generate_code",
+                "connectors_list",
+                "connector_link",
+                "fetch_assets",
+                
+                # Knowledge, SEO, Variants
+                "rag_ingest",
+                "rag_generate",
+                "seo_brief",
+                "seo_metadata",
+                "batch_generate",
+                "ab_generate_variants",
+                "export_bundle",
+                
+                # Brand Voice
+                "set_brand_voice",
+                "get_brand_voice"
+            ]
 
-class CreatorMCP(ModuleBase):
-    """Content Creator - Multi-API content generation."""
-
-    def __init__(self, config, db_manager):
-        super().__init__("creator")
+class CreatorModule:
+    """Creator MCP Module for omnimedia content generation"""
+    
+    def __init__(self, ai_agent: UmbraAIAgent, config: UmbraConfig, r2_client: Optional[R2Client] = None):
+        self.ai_agent = ai_agent
         self.config = config
-        self.db = db_manager
-
-        # API configurations
-        self.openrouter_key = config.OPENROUTER_API_KEY if hasattr(config, 'OPENROUTER_API_KEY') else None
-        self.stability_key = config.STABILITY_API_KEY if hasattr(config, 'STABILITY_API_KEY') else None
-        self.elevenlabs_key = config.ELEVENLABS_API_KEY if hasattr(config, 'ELEVENLABS_API_KEY') else None
-
-        self._init_database()
-
-    async def initialize(self) -> bool:
-        """Initialize the Creator module."""
+        self.r2_client = r2_client
+        
+        # Initialize core components
+        self.service = CreatorService(ai_agent, config)
+        self.image_gen = ImageGenerator(ai_agent, config)
+        self.video_gen = VideoGenerator(ai_agent, config)
+        self.audio_gen = AudioGenerator(ai_agent, config)
+        self.code_gen = CodeGenerator(ai_agent, config)
+        self.infographic_gen = InfographicGenerator(ai_agent, config)
+        self.rag_manager = RAGManager(ai_agent, config, r2_client)
+        self.seo_manager = SEOManager(ai_agent, config)
+        self.connector_manager = ConnectorManager(config)
+        self.template_manager = TemplateManager(config)
+        self.brand_voice = BrandVoiceManager(config)
+        self.presets = PlatformPresets(config)
+        self.export_manager = ExportManager(config, r2_client)
+        self.validator = ContentValidator(config)
+        self.provider_manager = EnhancedModelProviderManager(config)
+        
+        logger.info("Creator module v1 initialized")
+    
+    def get_capabilities(self) -> Dict[str, Any]:
+        """Return module capabilities"""
+        capabilities = CreatorCapabilities()
+        return asdict(capabilities)
+    
+    async def execute(self, action: str, params: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Execute a creator action"""
+        if params is None:
+            params = {}
+        
         try:
-            # Test database connectivity
-            test_query = "SELECT name FROM sqlite_master WHERE type='table' AND name='creations'"
-            self.db.query_one(test_query)
-
-            # Check API availability
-            available_apis = []
-            if self.openrouter_key:
-                available_apis.append("OpenRouter")
-            if self.stability_key:
-                available_apis.append("Stability AI")
-            if self.elevenlabs_key:
-                available_apis.append("ElevenLabs")
-
-            if available_apis:
-                self.logger.info(f"Creator module initialized with APIs: {', '.join(available_apis)}")
+            # Route to appropriate handler
+            if action == "auto":
+                return await self._auto_orchestrate(params)
+            elif action == "ingest_media":
+                return await self._ingest_media(params)
+            elif action == "estimate":
+                return await self._estimate(params)
+            elif action == "validate":
+                return await self._validate(params)
+                
+            # Text actions
+            elif action == "generate_post":
+                return await self._generate_post(params)
+            elif action == "content_pack":
+                return await self._content_pack(params)
+            elif action == "rewrite":
+                return await self._rewrite(params)
+            elif action == "summarize":
+                return await self._summarize(params)
+            elif action == "hashtags":
+                return await self._hashtags(params)
+            elif action == "title_variations":
+                return await self._title_variations(params)
+            elif action == "render_template":
+                return await self._render_template(params)
+            elif action == "list_templates":
+                return await self._list_templates(params)
+            elif action == "upsert_template":
+                return await self._upsert_template(params)
+                
+            # Image actions
+            elif action == "generate_image":
+                return await self._generate_image(params)
+            elif action == "edit_image":
+                return await self._edit_image(params)
+            elif action == "infographic":
+                return await self._infographic(params)
+                
+            # Audio/Video/Music actions
+            elif action == "asr_transcribe":
+                return await self._asr_transcribe(params)
+            elif action == "subtitle":
+                return await self._subtitle(params)
+            elif action == "video_anonymize":
+                return await self._video_anonymize(params)
+            elif action == "generate_video":
+                return await self._generate_video(params)
+            elif action == "tts_register_voice":
+                return await self._tts_register_voice(params)
+            elif action == "tts_speak":
+                return await self._tts_speak(params)
+            elif action == "music_generate":
+                return await self._music_generate(params)
+                
+            # Code/Sites & Connectors
+            elif action == "generate_site":
+                return await self._generate_site(params)
+            elif action == "generate_code":
+                return await self._generate_code(params)
+            elif action == "connectors_list":
+                return await self._connectors_list(params)
+            elif action == "connector_link":
+                return await self._connector_link(params)
+            elif action == "fetch_assets":
+                return await self._fetch_assets(params)
+                
+            # Knowledge, SEO, Variants
+            elif action == "rag_ingest":
+                return await self._rag_ingest(params)
+            elif action == "rag_generate":
+                return await self._rag_generate(params)
+            elif action == "seo_brief":
+                return await self._seo_brief(params)
+            elif action == "seo_metadata":
+                return await self._seo_metadata(params)
+            elif action == "batch_generate":
+                return await self._batch_generate(params)
+            elif action == "ab_generate_variants":
+                return await self._ab_generate_variants(params)
+            elif action == "export_bundle":
+                return await self._export_bundle(params)
+                
+            # Brand Voice
+            elif action == "set_brand_voice":
+                return await self._set_brand_voice(params)
+            elif action == "get_brand_voice":
+                return await self._get_brand_voice(params)
             else:
-                self.logger.info("Creator module initialized (no external APIs configured)")
-
-            return True
+                return {"error": f"Unknown action: {action}"}
+                
+        except CreatorError as e:
+            logger.error(f"Creator error in {action}: {e}")
+            return {"error": str(e), "error_type": "creator_error"}
         except Exception as e:
-            self.logger.error(f"Creator initialization failed: {e}")
-            return False
-
-    async def register_handlers(self) -> dict[str, Any]:
-        """Register command handlers for the Creator module."""
-        return {
-            "create image": self.create_image,
-            "create document": self.create_document,
-            "create video": self.create_video,
-            "create audio": self.create_audio,
-            "list creations": self.list_creations,
-            "content templates": self.get_content_templates,
-            "api status": self.get_api_status
-        }
-
-    async def process_envelope(self, envelope: InternalEnvelope) -> str | None:
-        """Process envelope for Creator operations."""
-        action = envelope.action.lower()
-        data = envelope.data
-
-        if action == "create_image":
-            prompt = data.get("prompt", "")
-            return await self.create_image(prompt)
-        elif action == "create_document":
-            request = data.get("request", "")
-            return await self.create_document(request)
-        elif action == "create_video":
-            request = data.get("request", "")
-            return await self.create_video(request)
-        elif action == "create_audio":
-            text = data.get("text", "")
-            return await self.create_audio(text)
-        elif action == "list_creations":
-            return await self.list_creations()
-        elif action == "content_templates":
-            return await self.get_content_templates()
-        elif action == "api_status":
-            return await self.get_api_status()
-        else:
-            return None
-
-    async def health_check(self) -> dict[str, Any]:
-        """Perform health check of the Creator module."""
+            logger.error(f"Error executing {action}: {e}")
+            return {"error": str(e), "error_type": "internal_error"}
+    
+    async def _auto_orchestrate(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Auto-orchestrate content creation from input"""
+        input_data = params.get("input")
+        goal = params.get("goal")
+        platform = params.get("platform")
+        tone = params.get("tone")
+        
+        if not input_data:
+            return {"error": "input is required"}
+        
         try:
-            # Check database connectivity
-            creations_count = self.db.query_one("SELECT COUNT(*) as count FROM creations")
-
-            # Check recent activity
-            recent_creations = self.db.query_one("""
-                SELECT COUNT(*) as count FROM creations
-                WHERE created_at >= date('now', '-7 days')
-            """)
-
-            # Check API configurations
-            api_status = {
-                "openrouter": bool(self.openrouter_key),
-                "stability": bool(self.stability_key),
-                "elevenlabs": bool(self.elevenlabs_key)
-            }
-
-            return {
-                "status": "healthy",
-                "details": {
-                    "total_creations": creations_count["count"] if creations_count else 0,
-                    "recent_creations": recent_creations["count"] if recent_creations else 0,
-                    "api_configured": api_status,
-                    "apis_available": sum(api_status.values()),
-                    "database_accessible": True
-                }
-            }
+            # Detect input type and route accordingly
+            result = await self.service.auto_orchestrate(input_data, goal, platform, tone)
+            return {"result": result, "status": "success"}
         except Exception as e:
-            return {
-                "status": "unhealthy",
-                "error": str(e)
-            }
-
-    async def shutdown(self):
-        """Gracefully shutdown the Creator module."""
-        self.logger.info("Creator module shutting down")
-        # No specific cleanup needed for this module
-
-    def _init_database(self):
-        """Initialize creator tables."""
+            return {"error": f"Auto-orchestration failed: {e}"}
+    
+    async def _ingest_media(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Ingest media file or URL"""
+        file_data = params.get("file")
+        url = params.get("url")
+        
+        if not file_data and not url:
+            return {"error": "file or url is required"}
+        
         try:
-            self.db.execute("""
-                CREATE TABLE IF NOT EXISTS creations (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    type TEXT,
-                    prompt TEXT,
-                    result TEXT,
-                    metadata TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
-            self.logger.info("✅ Creator database initialized")
+            result = await self.service.ingest_media(file_data, url)
+            return result
         except Exception as e:
-            self.logger.error(f"Creator DB init failed: {e}")
-
-    async def generate_image(self, prompt: str) -> str:
-        """Generate image using available APIs."""
+            return {"error": f"Media ingestion failed: {e}"}
+    
+    async def _estimate(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Estimate content requirements"""
+        brief = params.get("brief")
+        media = params.get("media")
+        text = params.get("text")
+        platform = params.get("platform")
+        
         try:
-            # Try OpenRouter first (if available)
-            if self.openrouter_key:
-                result = await self._generate_with_openrouter(prompt, 'image')
-                if result:
-                    return result
-
-            # Try Stability AI
-            if self.stability_key:
-                result = await self._generate_with_stability(prompt)
-                if result:
-                    return result
-
-            # Fallback to description
-            return self._simulate_image_generation(prompt)
-
+            result = await self.service.estimate_requirements(brief, media, text, platform)
+            return result
         except Exception as e:
-            self.logger.error(f"Image generation failed: {e}")
-            return f"❌ Image generation failed: {str(e)[:100]}"
-
-    async def _generate_with_openrouter(self, prompt: str, content_type: str) -> str | None:
-        """Generate content with OpenRouter."""
+            return {"error": f"Estimation failed: {e}"}
+    
+    async def _validate(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate content against platform rules"""
+        text = params.get("text")
+        asset = params.get("asset")
+        platform = params.get("platform")
+        
+        if not text and not asset:
+            return {"error": "text or asset is required"}
+        
         try:
-            if not self.openrouter_key:
-                return None
-
-            if content_type == 'image':
-                url = "https://openrouter.ai/api/v1/images/generations"
-                payload = {
-                    "model": "black-forest-labs/flux-schnell",
-                    "prompt": prompt,
-                    "size": "1024x1024",
-                    "n": 1
-                }
-            else:
-                return None
-
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    url,
-                    json=payload,
-                    headers={
-                        "Authorization": f"Bearer {self.openrouter_key}",
-                        "Content-Type": "application/json"
-                    },
-                    timeout=60
-                )
-
-                if response.status_code == 200:
-                    result = response.json()
-                    image_url = result.get('data', [{}])[0].get('url', '')
-
-                    if image_url:
-                        # Save to database
-                        self.db.execute(
-                            "INSERT INTO creations (type, prompt, result) VALUES (?, ?, ?)",
-                            ('image', prompt, image_url)
-                        )
-
-                        return f"""**🎨 Image Generated**
-
-Prompt: {prompt}
-
-🖼️ [View Image]({image_url})
-
-Image saved and ready for use."""
-
-            return None
-
+            result = await self.validator.validate_content(text, asset, platform)
+            return result
         except Exception as e:
-            self.logger.error(f"OpenRouter generation failed: {e}")
-            return None
-
-    async def _generate_with_stability(self, prompt: str) -> str | None:
-        """Generate image with Stability AI."""
+            return {"error": f"Validation failed: {e}"}
+    
+    async def _generate_post(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate social media post"""
+        topic = params.get("topic")
+        platform = params.get("platform")
+        tone = params.get("tone")
+        audience = params.get("audience")
+        length = params.get("length")
+        
+        if not topic:
+            return {"error": "topic is required"}
+        
         try:
-            if not self.stability_key:
-                return None
-
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    "https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/text-to-image",
-                    json={
-                        "text_prompts": [{"text": prompt}],
-                        "cfg_scale": 7,
-                        "steps": 30,
-                        "samples": 1
-                    },
-                    headers={
-                        "Authorization": f"Bearer {self.stability_key}",
-                        "Content-Type": "application/json"
-                    },
-                    timeout=60
-                )
-
-                if response.status_code == 200:
-                    result = response.json()
-                    artifacts = result.get('artifacts', [])
-
-                    if artifacts:
-                        image_data = artifacts[0].get('base64', '')
-
-                        # Save to database
-                        self.db.execute(
-                            "INSERT INTO creations (type, prompt, result) VALUES (?, ?, ?)",
-                            ('image', prompt, f"base64:{image_data[:50]}...")
-                        )
-
-                        return f"""**🎨 Image Generated (Stability AI)**
-
-Prompt: {prompt}
-
-✅ Image generated successfully
-Format: PNG
-Size: 1024x1024
-
-Image data saved (base64 encoded)."""
-
-            return None
-
+            result = await self.service.generate_post(topic, platform, tone, audience, length)
+            return {"post": result, "status": "success"}
         except Exception as e:
-            self.logger.error(f"Stability AI generation failed: {e}")
-            return None
-
-    def _simulate_image_generation(self, prompt: str) -> str:
-        """Simulate image generation when APIs unavailable."""
-        # Save to database
-        self.db.execute(
-            "INSERT INTO creations (type, prompt, result) VALUES (?, ?, ?)",
-            ('image', prompt, 'simulated')
-        )
-
-        return f"""**🎨 Image Generation Request**
-
-Prompt: {prompt}
-
-**Simulated Output:**
-- Style: Photorealistic
-- Resolution: 1024x1024
-- Format: PNG
-- Elements detected: {self._analyze_prompt(prompt)}
-
-Note: Configure OPENROUTER_API_KEY or STABILITY_API_KEY for actual generation."""
-
-    def _analyze_prompt(self, prompt: str) -> str:
-        """Analyze prompt for elements."""
-        elements = []
-
-        keywords = {
-            'landscape': ['mountain', 'forest', 'ocean', 'sky', 'nature'],
-            'portrait': ['person', 'face', 'man', 'woman', 'portrait'],
-            'abstract': ['abstract', 'geometric', 'pattern', 'colors'],
-            'tech': ['robot', 'cyber', 'tech', 'digital', 'futuristic']
-        }
-
-        prompt_lower = prompt.lower()
-        for category, words in keywords.items():
-            if any(word in prompt_lower for word in words):
-                elements.append(category)
-
-        return ', '.join(elements) if elements else 'general scene'
-
-    async def generate_document(self, request: str) -> str:
-        """Generate document content."""
+            return {"error": f"Post generation failed: {e}"}
+    
+    async def _content_pack(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate complete content pack"""
+        topic = params.get("topic")
+        platform = params.get("platform")
+        tone = params.get("tone")
+        audience = params.get("audience")
+        
+        if not topic:
+            return {"error": "topic is required"}
+        
         try:
-            # Parse document type from request
-            doc_type = self._determine_doc_type(request)
-
-            # Generate content
-            if self.openrouter_key:
-                content = await self._generate_text_content(request, doc_type)
-            else:
-                content = self._generate_template(doc_type, request)
-
-            # Save to database
-            self.db.execute(
-                "INSERT INTO creations (type, prompt, result) VALUES (?, ?, ?)",
-                ('document', request, content[:500])
+            result = await self.service.generate_content_pack(topic, platform, tone, audience)
+            return result
+        except Exception as e:
+            return {"error": f"Content pack generation failed: {e}"}
+    
+    async def _rewrite(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Rewrite text with tone/length adjustments"""
+        text = params.get("text")
+        tone = params.get("tone")
+        length = params.get("length")
+        
+        if not text:
+            return {"error": "text is required"}
+        
+        try:
+            result = await self.service.rewrite_text(text, tone, length)
+            return {"rewritten_text": result, "status": "success"}
+        except Exception as e:
+            return {"error": f"Rewrite failed: {e}"}
+    
+    async def _summarize(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Summarize text content"""
+        text = params.get("text")
+        target_length = params.get("target_length")
+        
+        if not text:
+            return {"error": "text is required"}
+        
+        try:
+            result = await self.service.summarize_text(text, target_length)
+            return {"summary": result, "status": "success"}
+        except Exception as e:
+            return {"error": f"Summarization failed: {e}"}
+    
+    async def _hashtags(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate hashtags for topic"""
+        topic = params.get("topic")
+        platform = params.get("platform")
+        count = params.get("count", 10)
+        
+        if not topic:
+            return {"error": "topic is required"}
+        
+        try:
+            result = await self.service.generate_hashtags(topic, platform, count)
+            return {"hashtags": result, "status": "success"}
+        except Exception as e:
+            return {"error": f"Hashtag generation failed: {e}"}
+    
+    async def _title_variations(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate title variations"""
+        topic = params.get("topic")
+        count = params.get("count", 3)
+        platform = params.get("platform")
+        
+        if not topic:
+            return {"error": "topic is required"}
+        
+        try:
+            result = await self.service.generate_title_variations(topic, count, platform)
+            return {"titles": result, "status": "success"}
+        except Exception as e:
+            return {"error": f"Title generation failed: {e}"}
+    
+    async def _render_template(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Render template with variables"""
+        template_id = params.get("template_id")
+        variables = params.get("variables", {})
+        
+        if not template_id:
+            return {"error": "template_id is required"}
+        
+        try:
+            result = await self.template_manager.render_template(template_id, variables)
+            return {"rendered_text": result, "status": "success"}
+        except Exception as e:
+            return {"error": f"Template rendering failed: {e}"}
+    
+    async def _list_templates(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """List available templates"""
+        try:
+            result = await self.template_manager.list_templates()
+            return {"templates": result, "status": "success"}
+        except Exception as e:
+            return {"error": f"Template listing failed: {e}"}
+    
+    async def _upsert_template(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Create or update template"""
+        template_id = params.get("template_id")
+        body = params.get("body")
+        meta = params.get("meta", {})
+        
+        if not body:
+            return {"error": "body is required"}
+        
+        try:
+            result = await self.template_manager.upsert_template(template_id, body, meta)
+            return {"template_id": result, "status": "success"}
+        except Exception as e:
+            return {"error": f"Template upsert failed: {e}"}
+    
+    async def _generate_image(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate image from prompt"""
+        prompt = params.get("prompt")
+        refs = params.get("refs", [])
+        size = params.get("size")
+        style = params.get("style")
+        negative = params.get("negative", [])
+        seed = params.get("seed")
+        
+        if not prompt:
+            return {"error": "prompt is required"}
+        
+        try:
+            result = await self.image_gen.generate_image(prompt, refs, size, style, negative, seed)
+            return result
+        except Exception as e:
+            return {"error": f"Image generation failed: {e}"}
+    
+    async def _edit_image(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Edit existing image"""
+        media_id = params.get("media_id")
+        instructions = params.get("instructions")
+        mask = params.get("mask")
+        size = params.get("size")
+        style = params.get("style")
+        
+        if not media_id or not instructions:
+            return {"error": "media_id and instructions are required"}
+        
+        try:
+            result = await self.image_gen.edit_image(media_id, instructions, mask, size, style)
+            return result
+        except Exception as e:
+            return {"error": f"Image editing failed: {e}"}
+    
+    async def _infographic(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate infographic from data"""
+        data_spec = params.get("data_spec")
+        brand_prefs = params.get("brand_prefs")
+        layout_hint = params.get("layout_hint")
+        
+        if not data_spec:
+            return {"error": "data_spec is required"}
+        
+        try:
+            result = await self.infographic_gen.generate_infographic(data_spec, brand_prefs, layout_hint)
+            return result
+        except Exception as e:
+            return {"error": f"Infographic generation failed: {e}"}
+    
+    # Audio/Video methods
+    async def _asr_transcribe(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Transcribe audio/video"""
+        media_id = params.get("media_id")
+        diarization = params.get("diarization", False)
+        
+        if not media_id:
+            return {"error": "media_id is required"}
+        
+        try:
+            result = await self.audio_gen.transcribe_media(media_id, diarization)
+            return result
+        except Exception as e:
+            return {"error": f"Transcription failed: {e}"}
+    
+    async def _subtitle(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate subtitles"""
+        media_id = params.get("media_id")
+        text = params.get("text")
+        style = params.get("style")
+        
+        if not media_id and not text:
+            return {"error": "media_id or text is required"}
+        
+        try:
+            result = await self.audio_gen.generate_subtitles(media_id, text, style)
+            return result
+        except Exception as e:
+            return {"error": f"Subtitle generation failed: {e}"}
+    
+    async def _video_anonymize(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Anonymize faces/plates in video"""
+        media_id = params.get("media_id")
+        faces = params.get("faces", True)
+        plates = params.get("plates", True)
+        
+        if not media_id:
+            return {"error": "media_id is required"}
+        
+        try:
+            result = await self.video_gen.anonymize_video(media_id, faces, plates)
+            return result
+        except Exception as e:
+            return {"error": f"Video anonymization failed: {e}"}
+    
+    async def _generate_video(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate video content"""
+        brief = params.get("brief")
+        format_spec = params.get("format", "16:9")
+        duration_s = params.get("duration_s", 30)
+        storyboard = params.get("storyboard")
+        voice_id = params.get("voice_id")
+        music_id = params.get("music_id")
+        subtitles = params.get("subtitles", "auto")
+        
+        if not brief:
+            return {"error": "brief is required"}
+        
+        if duration_s > 60:
+            return {"error": "duration_s must be <= 60 seconds"}
+        
+        try:
+            result = await self.video_gen.generate_video(
+                brief, format_spec, duration_s, storyboard, voice_id, music_id, subtitles
             )
-
-            return f"""**📄 Document Generated**
-
-Type: {doc_type}
-Request: {request}
-
-**Content Preview:**
-```
-{content[:500]}...
-```
-
-Full document saved and ready for use."""
-
+            return result
         except Exception as e:
-            return f"❌ Document generation failed: {str(e)[:100]}"
-
-    def _determine_doc_type(self, request: str) -> str:
-        """Determine document type from request."""
-        request_lower = request.lower()
-
-        if any(word in request_lower for word in ['report', 'analysis']):
-            return 'report'
-        elif any(word in request_lower for word in ['proposal', 'pitch']):
-            return 'proposal'
-        elif any(word in request_lower for word in ['email', 'message']):
-            return 'email'
-        elif any(word in request_lower for word in ['contract', 'agreement']):
-            return 'contract'
-        else:
-            return 'general'
-
-    async def _generate_text_content(self, request: str, doc_type: str) -> str:
-        """Generate text content using AI."""
+            return {"error": f"Video generation failed: {e}"}
+    
+    async def _tts_register_voice(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Register custom voice for TTS"""
+        sample_url = params.get("sample_url")
+        consent_token = params.get("consent_token")
+        
+        if not sample_url or not consent_token:
+            return {"error": "sample_url and consent_token are required"}
+        
         try:
-            if not self.openrouter_key:
-                return self._generate_template(doc_type, request)
-
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    "https://openrouter.ai/api/v1/chat/completions",
-                    json={
-                        "model": "anthropic/claude-3-haiku",
-                        "messages": [
-                            {
-                                "role": "system",
-                                "content": f"Generate a professional {doc_type} document."
-                            },
-                            {
-                                "role": "user",
-                                "content": request
-                            }
-                        ],
-                        "max_tokens": 1000
-                    },
-                    headers={
-                        "Authorization": f"Bearer {self.openrouter_key}",
-                        "Content-Type": "application/json"
-                    },
-                    timeout=30
-                )
-
-                if response.status_code == 200:
-                    result = response.json()
-                    content = result.get('choices', [{}])[0].get('message', {}).get('content', '')
-                    return content
-
-            return self._generate_template(doc_type, request)
-
+            result = await self.audio_gen.register_voice(sample_url, consent_token)
+            return result
         except Exception as e:
-            self.logger.error(f"Text generation failed: {e}")
-            return self._generate_template(doc_type, request)
-
-    def _generate_template(self, doc_type: str, request: str) -> str:
-        """Generate document template."""
-        templates = {
-            'report': f"""# Report
-## Executive Summary
-{request}
-
-## Introduction
-This report addresses the requested analysis...
-
-## Key Findings
-1. Finding 1
-2. Finding 2
-3. Finding 3
-
-## Recommendations
-- Recommendation 1
-- Recommendation 2
-
-## Conclusion
-Based on the analysis...""",
-
-            'proposal': f"""# Business Proposal
-## Overview
-{request}
-
-## Objectives
-- Primary objective
-- Secondary objectives
-
-## Approach
-Our proposed approach...
-
-## Timeline
-- Phase 1: Planning (Week 1-2)
-- Phase 2: Implementation (Week 3-6)
-- Phase 3: Review (Week 7)
-
-## Budget
-Estimated budget...""",
-
-            'email': f"""Subject: {request}
-
-Dear [Recipient],
-
-I hope this email finds you well.
-
-{request}
-
-Best regards,
-[Your name]""",
-
-            'general': f"""# Document
-## Subject: {request}
-
-Content based on request...
-
-## Section 1
-Details...
-
-## Section 2
-Additional information...
-
-## Summary
-Key points..."""
-        }
-
-        return templates.get(doc_type, templates['general'])
-
-    async def create_video(self, request: str) -> str:
-        """Create video content."""
+            return {"error": f"Voice registration failed: {e}"}
+    
+    async def _tts_speak(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert text to speech"""
+        text = params.get("text")
+        voice_id = params.get("voice_id")
+        style = params.get("style")
+        speed = params.get("speed")
+        
+        if not text:
+            return {"error": "text is required"}
+        
         try:
-            # For now, generate video script and storyboard
-            script = await self._generate_video_script(request)
-
-            # Save to database
-            self.db.execute(
-                "INSERT INTO creations (type, prompt, result) VALUES (?, ?, ?)",
-                ('video', request, script[:500])
-            )
-
-            return f"""**🎬 Video Creation Plan**
-
-Request: {request}
-
-**Script & Storyboard:**
-```
-{script}
-```
-
-**Technical Specs:**
-- Duration: ~60 seconds
-- Resolution: 1920x1080
-- Format: MP4
-- FPS: 30
-
-Note: Full video generation requires additional API setup."""
-
+            result = await self.audio_gen.text_to_speech(text, voice_id, style, speed)
+            return result
         except Exception as e:
-            return f"❌ Video creation failed: {str(e)[:100]}"
-
-    async def _generate_video_script(self, request: str) -> str:
-        """Generate video script."""
-        return f"""[SCENE 1 - Opening]
-Duration: 5 seconds
-Visual: Title card
-Audio: Background music fade in
-Text: "{request}"
-
-[SCENE 2 - Main Content]
-Duration: 20 seconds
-Visual: Main subject matter
-Audio: Narration begins
-Script: "Introduction to the topic..."
-
-[SCENE 3 - Details]
-Duration: 20 seconds
-Visual: Supporting visuals
-Audio: Continued narration
-Script: "Key points and details..."
-
-[SCENE 4 - Conclusion]
-Duration: 10 seconds
-Visual: Summary graphics
-Audio: Closing narration
-Script: "In conclusion..."
-
-[SCENE 5 - End Card]
-Duration: 5 seconds
-Visual: Logo/branding
-Audio: Music fade out
-Text: "Thank you for watching" """
-
-    async def list_creations(self) -> str:
-        """List recent creations."""
+            return {"error": f"TTS generation failed: {e}"}
+    
+    async def _music_generate(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate music"""
+        brief = params.get("brief")
+        duration_s = params.get("duration_s", 30)
+        genre = params.get("genre")
+        bpm = params.get("bpm")
+        structure = params.get("structure")
+        refs = params.get("refs", [])
+        
+        if not brief:
+            return {"error": "brief is required"}
+        
+        if duration_s > 60:
+            return {"error": "duration_s must be <= 60 seconds"}
+        
         try:
-            creations = self.db.query_all(
-                "SELECT * FROM creations ORDER BY created_at DESC LIMIT 10"
-            )
-
-            if not creations:
-                return "No content created yet"
-
-            creation_lines = []
-            for creation in creations:
-                type_emoji = {
-                    'image': '🎨',
-                    'document': '📄',
-                    'video': '🎬'
-                }.get(creation['type'], '📦')
-
-                prompt_short = creation['prompt'][:50] + '...' if len(creation['prompt']) > 50 else creation['prompt']
-                creation_lines.append(
-                    f"{type_emoji} {creation['type'].title()}: {prompt_short}"
-                )
-
-            return f"""**📚 Recent Creations**
-
-{chr(10).join(creation_lines)}
-
-Total: {len(creations)} items created"""
-
+            result = await self.audio_gen.generate_music(brief, duration_s, genre, bpm, structure, refs)
+            return result
         except Exception as e:
-            return f"❌ Failed to list creations: {str(e)[:100]}"
-
-    async def create_audio(self, text: str) -> str:
-        """Create audio from text using TTS APIs."""
+            return {"error": f"Music generation failed: {e}"}
+    
+    # Code/Sites & Connectors
+    async def _generate_site(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate website/app"""
+        brief = params.get("brief")
+        stack = params.get("stack", "nextjs")
+        features = params.get("features", [])
+        
+        if not brief:
+            return {"error": "brief is required"}
+        
         try:
-            if not text:
-                return "❌ Please provide text to convert to audio"
-
-            creation_id = f"audio_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-
-            # Store creation record
-            self.db.execute("""
-                INSERT INTO creations (type, prompt, result, metadata)
-                VALUES (?, ?, ?, ?)
-            """, ("audio", text, f"Audio creation: {creation_id}", json.dumps({
-                "length": len(text),
-                "api": "elevenlabs" if self.elevenlabs_key else "placeholder"
-            })))
-
-            if self.elevenlabs_key:
-                # Would implement actual ElevenLabs API call here
-                return f"""**🎵 Audio Created**
-
-ID: {creation_id}
-Text: {text[:100]}{'...' if len(text) > 100 else ''}
-Length: ~{len(text.split()) * 0.5:.1f} seconds (estimated)
-
-Status: ✅ Ready for download
-Note: ElevenLabs API integration ready"""
-            else:
-                return f"""**🎵 Audio Creation Planned**
-
-ID: {creation_id}
-Text: {text[:100]}{'...' if len(text) > 100 else ''}
-
-Status: Saved for processing
-Note: Configure ELEVENLABS_API_KEY for actual audio generation"""
-
+            result = await self.code_gen.generate_site(brief, stack, features)
+            return result
         except Exception as e:
-            return f"❌ Audio creation failed: {str(e)[:100]}"
-
-    async def get_content_templates(self) -> str:
-        """Get available content creation templates."""
+            return {"error": f"Site generation failed: {e}"}
+    
+    async def _generate_code(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate code components"""
+        spec = params.get("spec")
+        prog_language = params.get("prog_language")
+        tests = params.get("tests", False)
+        
+        if not spec or not prog_language:
+            return {"error": "spec and prog_language are required"}
+        
         try:
-            templates = {
-                "images": {
-                    "logo": "Professional logo design",
-                    "banner": "Social media banner",
-                    "illustration": "Custom illustration",
-                    "icon": "App or web icon",
-                    "avatar": "Profile avatar/character",
-                    "product": "Product showcase image"
-                },
-                "documents": {
-                    "proposal": "Business proposal template",
-                    "report": "Professional report format",
-                    "resume": "Modern resume layout",
-                    "invoice": "Invoice template",
-                    "letter": "Formal letter format",
-                    "contract": "Basic contract template"
-                },
-                "videos": {
-                    "explainer": "Product explainer video",
-                    "tutorial": "Step-by-step tutorial",
-                    "promo": "Promotional video",
-                    "demo": "Software demo video",
-                    "slideshow": "Image slideshow with music"
-                },
-                "audio": {
-                    "narration": "Professional narration",
-                    "podcast": "Podcast episode intro",
-                    "announcement": "Public announcement",
-                    "commercial": "Radio commercial"
-                }
-            }
-
-            template_list = []
-            for category, items in templates.items():
-                template_list.append(f"**{category.upper()}:**")
-                for key, description in items.items():
-                    template_list.append(f"  • {key}: {description}")
-                template_list.append("")
-
-            return f"""**🎨 Content Creation Templates**
-
-{chr(10).join(template_list)}
-
-Use templates by specifying the type in your request:
-"create image logo for tech startup"
-"create document proposal for web development project"
-"""
-
+            result = await self.code_gen.generate_code(spec, prog_language, tests)
+            return result
         except Exception as e:
-            return f"❌ Template listing failed: {str(e)[:100]}"
-
-    async def get_api_status(self) -> str:
-        """Get status of configured APIs."""
+            return {"error": f"Code generation failed: {e}"}
+    
+    async def _connectors_list(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """List available connectors"""
         try:
-            api_status = []
-
-            # OpenRouter (AI/Text)
-            if self.openrouter_key:
-                api_status.append("✅ OpenRouter API - Text/AI generation")
-            else:
-                api_status.append("❌ OpenRouter API - Not configured (set OPENROUTER_API_KEY)")
-
-            # Stability AI (Images)
-            if self.stability_key:
-                api_status.append("✅ Stability AI - Image generation")
-            else:
-                api_status.append("❌ Stability AI - Not configured (set STABILITY_API_KEY)")
-
-            # ElevenLabs (Audio)
-            if self.elevenlabs_key:
-                api_status.append("✅ ElevenLabs - Audio/TTS generation")
-            else:
-                api_status.append("❌ ElevenLabs - Not configured (set ELEVENLABS_API_KEY)")
-
-            configured_count = sum([
-                bool(self.openrouter_key),
-                bool(self.stability_key),
-                bool(self.elevenlabs_key)
-            ])
-
-            return f"""**🔌 Creator API Status**
-
-{chr(10).join(api_status)}
-
-**Summary:** {configured_count}/3 APIs configured
-
-**Capabilities:**
-• Text/Documents: {'Available' if self.openrouter_key else 'Limited (templates only)'}
-• Image Generation: {'Available' if self.stability_key else 'Limited (templates only)'}
-• Audio/TTS: {'Available' if self.elevenlabs_key else 'Limited (templates only)'}
-• Video Creation: Limited (placeholder implementation)
-"""
-
+            result = await self.connector_manager.list_connectors()
+            return {"sources": result, "status": "success"}
         except Exception as e:
-            return f"❌ API status check failed: {str(e)[:100]}"
+            return {"error": f"Connector listing failed: {e}"}
+    
+    async def _connector_link(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Link external data source"""
+        source = params.get("source")
+        auth = params.get("auth")
+        
+        if not source or not auth:
+            return {"error": "source and auth are required"}
+        
+        try:
+            result = await self.connector_manager.link_connector(source, auth)
+            return {"connector_id": result, "status": "success"}
+        except Exception as e:
+            return {"error": f"Connector linking failed: {e}"}
+    
+    async def _fetch_assets(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Fetch assets from connected source"""
+        connector_id = params.get("connector_id")
+        query = params.get("query")
+        
+        if not connector_id:
+            return {"error": "connector_id is required"}
+        
+        try:
+            result = await self.connector_manager.fetch_assets(connector_id, query)
+            return {"assets": result, "status": "success"}
+        except Exception as e:
+            return {"error": f"Asset fetching failed: {e}"}
+    
+    # Knowledge, SEO, Variants
+    async def _rag_ingest(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Ingest documents for RAG"""
+        docs = params.get("docs", [])
+        tags = params.get("tags", [])
+        
+        if not docs:
+            return {"error": "docs are required"}
+        
+        try:
+            result = await self.rag_manager.ingest_documents(docs, tags)
+            return {"kb_id": result, "status": "success"}
+        except Exception as e:
+            return {"error": f"RAG ingestion failed: {e}"}
+    
+    async def _rag_generate(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate content with RAG citations"""
+        brief = params.get("brief")
+        cite = params.get("cite", False)
+        
+        if not brief:
+            return {"error": "brief is required"}
+        
+        try:
+            result = await self.rag_manager.generate_with_citations(brief, cite)
+            return result
+        except Exception as e:
+            return {"error": f"RAG generation failed: {e}"}
+    
+    async def _seo_brief(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate SEO brief"""
+        url_or_topic = params.get("url_or_topic")
+        
+        if not url_or_topic:
+            return {"error": "url_or_topic is required"}
+        
+        try:
+            result = await self.seo_manager.generate_brief(url_or_topic)
+            return result
+        except Exception as e:
+            return {"error": f"SEO brief generation failed: {e}"}
+    
+    async def _seo_metadata(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate SEO metadata"""
+        page_spec = params.get("page_spec")
+        
+        if not page_spec:
+            return {"error": "page_spec is required"}
+        
+        try:
+            result = await self.seo_manager.generate_metadata(page_spec)
+            return result
+        except Exception as e:
+            return {"error": f"SEO metadata generation failed: {e}"}
+    
+    async def _batch_generate(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate content in batches"""
+        task_spec = params.get("task_spec")
+        variations = params.get("variations", 1)
+        
+        if not task_spec:
+            return {"error": "task_spec is required"}
+        
+        try:
+            result = await self.service.batch_generate(task_spec, variations)
+            return {"variants": result, "status": "success"}
+        except Exception as e:
+            return {"error": f"Batch generation failed: {e}"}
+    
+    async def _ab_generate_variants(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate A/B test variants"""
+        brief = params.get("brief")
+        k = params.get("k", 3)
+        
+        if not brief:
+            return {"error": "brief is required"}
+        
+        try:
+            result = await self.service.generate_ab_variants(brief, k)
+            return result
+        except Exception as e:
+            return {"error": f"A/B variant generation failed: {e}"}
+    
+    async def _export_bundle(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Export content bundle"""
+        assets = params.get("assets", [])
+        format_type = params.get("format", "zip")
+        
+        if not assets:
+            return {"error": "assets are required"}
+        
+        try:
+            result = await self.export_manager.create_bundle(assets, format_type)
+            return {"download_url": result, "status": "success"}
+        except Exception as e:
+            return {"error": f"Bundle export failed: {e}"}
+    
+    # Brand Voice
+    async def _set_brand_voice(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Set brand voice metadata"""
+        meta_json = params.get("meta_json")
+        
+        if not meta_json:
+            return {"error": "meta_json is required"}
+        
+        try:
+            result = await self.brand_voice.set_brand_voice(meta_json)
+            return {"status": "success" if result else "failed"}
+        except Exception as e:
+            return {"error": f"Brand voice setting failed: {e}"}
+    
+    async def _get_brand_voice(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Get brand voice metadata"""
+        try:
+            result = await self.brand_voice.get_brand_voice()
+            return result or {}
+        except Exception as e:
+            return {"error": f"Brand voice retrieval failed: {e}"}
+
+# Module registration
+async def get_capabilities() -> Dict[str, Any]:
+    """Get creator module capabilities"""
+    capabilities = CreatorCapabilities()
+    return asdict(capabilities)
+
+async def execute(action: str, params: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
+    """Execute creator action with context"""
+    ai_agent = context.get("ai_agent")
+    config = context.get("config")
+    r2_client = context.get("r2_client")
+    
+    if not ai_agent or not config:
+        return {"error": "Missing required context (ai_agent, config)"}
+    
+    module = CreatorModule(ai_agent, config, r2_client)
+    return await module.execute(action, params)

@@ -1,1 +1,415 @@
-# 🤖 Umbra - Advanced Telegram Bot Framework\n\n**Enterprise-grade Swiss assistant with AI integration and object storage.**\n\nUmbra is a powerful, modular Telegram bot framework designed for Swiss operations with enterprise features like AI integration (F3R1), object storage (F4R2), and comprehensive business modules.\n\n## 🌟 Key Features\n\n### 🧠 **F3R1 - AI Integration**\n- **OpenRouter Integration**: Access to 200+ AI models\n- **Multi-Role AI System**: Specialized AI agents (Planner, Builder, Controller, Chat)\n- **Intelligent Conversations**: Context-aware responses with conversation history\n- **Streaming Support**: Real-time AI responses\n\n### 🗄️ **F4R2 - Object Storage**\n- **Cloudflare R2 Integration**: S3-compatible object storage with global edge\n- **JSONL Manifests**: Real-time data streams with ETag concurrency control\n- **Parquet Analytics**: Columnar storage for business intelligence\n- **Built-in Search**: Full-text search across stored documents\n- **Presigned URLs**: Secure, time-limited access to files\n\n### 🏗️ **Modular Architecture**\n- **Swiss Accountant**: Expense tracking and financial management\n- **Creator Module**: Content generation and brand management\n- **Concierge Module**: Virtual assistant capabilities\n- **Production Module**: Automated workflows and integrations\n\n### 🚀 **Enterprise Ready**\n- **Railway Deployment**: One-click cloud deployment\n- **Comprehensive Monitoring**: System health and performance tracking\n- **Rate Limiting**: Protection against abuse\n- **Privacy Controls**: Swiss data protection compliance\n- **Multi-user Support**: User and admin role management\n\n## 🔧 Quick Setup\n\n### 1. Clone and Install\n\n```bash\ngit clone [your-repo-url]\ncd UMBRA\npip install -r requirements.txt\n```\n\n### 2. Configure Environment\n\n```bash\ncp .env.example .env\n# Edit .env with your credentials\n```\n\n**Required Variables:**\n```bash\n# Telegram Bot\nTELEGRAM_BOT_TOKEN=your_bot_token\nALLOWED_USER_IDS=123456789,987654321\nALLOWED_ADMIN_IDS=123456789\n\n# F3R1: AI Integration (Optional)\nOPENROUTER_API_KEY=your_openrouter_key\n\n# F4R2: Object Storage (Optional)\nR2_ACCOUNT_ID=your_cloudflare_account_id\nR2_ACCESS_KEY_ID=your_r2_access_key\nR2_SECRET_ACCESS_KEY=your_r2_secret_key\nR2_BUCKET=your_bucket_name\n```\n\n### 3. Validate Setup\n\n```bash\n# Quick validation\npython f4r2_validate.py\n\n# Full demo\npython f4r2_demo.py\n\n# Run tests\npytest tests/ -v\n```\n\n### 4. Start Bot\n\n```bash\npython main.py\n```\n\n## 📋 Available Commands\n\n### 🤖 **Core Commands**\n- `/start` - Initialize bot and show welcome\n- `/help` - Show available commands\n- `/status` - System health and feature availability\n- `/admin` - Admin panel (admin users only)\n\n### 🧠 **AI Commands (F3R1)**\n- `/chat <message>` - Chat with AI assistant\n- `/plan <task>` - AI task planning\n- `/build <description>` - AI code/content generation\n- `/control <request>` - AI system control\n\n### 💰 **Swiss Accountant**\n- `/expense <amount> <description>` - Add expense\n- `/expenses` - View recent expenses\n- `/budget` - Budget overview\n- `/receipt` - Process receipt (with image)\n\n### 🎨 **Creator Module**\n- `/create <type> <description>` - Generate content\n- `/brand` - Brand voice management\n- `/templates` - Content templates\n\n### 🏢 **Business Operations**\n- `/instance` - Instance management\n- `/workflow` - Automated workflows\n- `/export` - Data export\n\n## 🏗️ Architecture\n\n### Core Framework\n```\numbra/\n├── core/           # Bot framework and configuration\n├── modules/        # Feature modules\n├── storage/        # F4R2 object storage\n├── ai/            # F3R1 AI integration\n└── utils/         # Shared utilities\n```\n\n### F4R2 Storage Stack\n```\nCloudflare R2\n    ↓\nR2Client (S3-compatible API)\n    ↓\nObjectStorage (High-level operations)\n    ↓\n├── ManifestManager (JSONL/Parquet)\n└── SearchIndex (Text search)\n```\n\n### F3R1 AI Stack\n```\nOpenRouter API (200+ models)\n    ↓\nAI Client (Unified interface)\n    ↓\n├── Planner (Task analysis)\n├── Builder (Code generation)\n├── Controller (System control)\n└── Chat (Conversations)\n```\n\n## 📊 Storage Organization\n\nF4R2 organizes data in a structured hierarchy:\n\n```\nr2://{BUCKET}/\n  manifests/\n    swiss_accountant/\n      expenses-{user_id}.jsonl\n      transactions-{user_id}-{month}.parquet\n    creator/\n      templates.jsonl\n      brand_voice.json\n  documents/\n    {sha256}.{ext}          # Content-addressed files\n  exports/\n    {module}/{timestamp}.{format}\n```\n\n## 🔌 Module Development\n\n### Creating a New Module\n\n```python\nfrom umbra.core.module import BaseModule\nfrom umbra.storage import ObjectStorage, ManifestManager\n\nclass MyModule(BaseModule):\n    def __init__(self):\n        super().__init__(\"my_module\")\n        self.storage = ObjectStorage()\n        self.manifests = ManifestManager(self.storage)\n    \n    async def handle_command(self, update, context):\n        # Store data\n        await self.manifests.append_jsonl(\n            module=self.name,\n            name=\"data\",\n            entry={\"user_id\": update.effective_user.id, \"data\": \"value\"}\n        )\n        \n        await update.message.reply_text(\"Data stored!\")\n```\n\n### Using F4R2 Storage\n\n```python\nfrom umbra.storage import ObjectStorage, ManifestManager, SearchIndex\n\n# Initialize storage stack\nstorage = ObjectStorage()\nmanifests = ManifestManager(storage)\nsearch = SearchIndex(storage)\n\n# Store document\nresult = storage.store_document(\n    data=pdf_bytes,\n    filename=\"receipt.pdf\",\n    content_type=\"application/pdf\"\n)\n\n# Add to manifest\nmanifests.append_jsonl(\n    module=\"receipts\",\n    name=\"uploads\",\n    entry={\"document_key\": result[\"key\"], \"amount\": 25.50}\n)\n\n# Index for search\nsearch.add_document(\n    module=\"receipts\",\n    document_id=result[\"sha256\"],\n    text_content=\"Receipt from coffee shop\",\n    merchant=\"Coffee Shop\"\n)\n```\n\n### Using F3R1 AI\n\n```python\nfrom umbra.ai import AIClient\n\n# Initialize AI client\nai = AIClient()\n\n# Chat completion\nresponse = await ai.chat_completion(\n    messages=[\n        {\"role\": \"user\", \"content\": \"Analyze this expense data\"}\n    ],\n    model=\"anthropic/claude-3.5-sonnet:beta\"\n)\n\n# Streaming response\nasync for chunk in ai.chat_completion_stream(\n    messages=messages,\n    model=\"anthropic/claude-3.5-sonnet:beta\"\n):\n    print(chunk, end=\"\")\n```\n\n## 🚀 Deployment\n\n### Railway (Recommended)\n\n1. **Connect Repository**: Link your GitHub repo to Railway\n2. **Set Environment Variables**: Configure in Railway dashboard\n3. **Deploy**: Automatic deployment on push\n\n### Docker\n\n```bash\n# Build image\ndocker build -t umbra .\n\n# Run container\ndocker run -d \\\n  --env-file .env \\\n  --name umbra \\\n  umbra\n```\n\n### VPS/Server\n\n```bash\n# Install dependencies\npip install -r requirements.txt\n\n# Run with systemd service\nsudo systemctl enable umbra\nsudo systemctl start umbra\n```\n\n## 🧪 Testing\n\n### Run All Tests\n\n```bash\n# All tests\npytest tests/ -v\n\n# With coverage\npytest --cov=umbra tests/ -v\n\n# Specific features\npytest tests/test_f4r2* -v  # F4R2 storage tests\npytest tests/test_f3r1* -v  # F3R1 AI tests\n```\n\n### Manual Testing\n\n```bash\n# Validate F4R2 setup\npython f4r2_validate.py\n\n# F4R2 full demo\npython f4r2_demo.py\n\n# Test individual modules\npython -m umbra.modules.swiss_accountant.test\n```\n\n## 📚 Documentation\n\n- **[F4R2 Object Storage](F4R2_README.md)** - Complete R2 storage guide\n- **[F3R1 AI Integration](F3R1_README.md)** - AI capabilities documentation\n- **[Module Development](docs/modules.md)** - Creating custom modules\n- **[Deployment Guide](docs/deployment.md)** - Production deployment\n- **[API Reference](docs/api.md)** - Complete API documentation\n\n## 🔒 Security & Privacy\n\n### Swiss Data Protection\n- User data stored in Switzerland (Cloudflare R2)\n- GDPR/FADP compliance\n- End-to-end encryption for sensitive data\n- Audit logs for all operations\n\n### Access Control\n- User ID whitelist\n- Admin role separation\n- Rate limiting protection\n- API key management\n\n## 📈 Monitoring & Analytics\n\n### Built-in Monitoring\n```bash\n# System status\n/status\n\n# Storage statistics\nstorage.get_storage_stats()\n\n# AI usage analytics\nai.get_usage_stats()\n```\n\n### External Monitoring\n- Railway metrics dashboard\n- Cloudflare R2 analytics\n- OpenRouter usage tracking\n- Custom Prometheus/Grafana setup\n\n## 🐛 Troubleshooting\n\n### Common Issues\n\n**Bot not responding:**\n```bash\n# Check bot token\necho $TELEGRAM_BOT_TOKEN\n\n# Validate configuration\npython f4r2_validate.py\n```\n\n**R2 storage errors:**\n```bash\n# Check R2 credentials\naws s3 ls s3://your-bucket --endpoint-url=https://account.r2.cloudflarestorage.com\n\n# Test connection\npython -c \"from umbra.storage import ObjectStorage; print(ObjectStorage().is_available())\"\n```\n\n**AI not working:**\n```bash\n# Check OpenRouter key\ncurl -H \"Authorization: Bearer $OPENROUTER_API_KEY\" https://openrouter.ai/api/v1/models\n```\n\n### Debug Mode\n\n```bash\n# Enable debug logging\nLOG_LEVEL=DEBUG python main.py\n\n# Test specific features\nFEATURE_AI_INTEGRATION=true python main.py\n```\n\n## 🤝 Contributing\n\n### Development Setup\n\n```bash\n# Clone repository\ngit clone [repo-url]\ncd UMBRA\n\n# Install dev dependencies\npip install -r requirements.txt\npip install -r requirements-dev.txt\n\n# Pre-commit hooks\npre-commit install\n\n# Run tests\npytest tests/ -v\n```\n\n### Contribution Guidelines\n\n1. **Fork & Branch**: Create feature branch from `main`\n2. **Code Quality**: Follow PEP 8, add type hints\n3. **Testing**: Add tests for new features\n4. **Documentation**: Update relevant docs\n5. **Pull Request**: Submit with clear description\n\n## 📋 Roadmap\n\n### Current Features (v4.2)\n- ✅ F3R1: AI Integration with OpenRouter\n- ✅ F4R2: Cloudflare R2 Object Storage\n- ✅ Swiss Accountant: Expense tracking\n- ✅ Creator Module: Content generation\n- ✅ Concierge: Virtual assistance\n\n### Upcoming Features\n- 🔄 **Business Module (BUS1)**: Multi-instance management\n- 🔄 **Enhanced Analytics**: Parquet-based reporting\n- 🔄 **Mobile App**: React Native companion\n- 🔄 **API Gateway**: REST API for external integrations\n- 🔄 **Workflow Engine**: Visual automation builder\n\n## 📄 License\n\nThis project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.\n\n## 🙏 Acknowledgments\n\n- **Cloudflare R2** for enterprise object storage\n- **OpenRouter** for AI model access\n- **Railway** for seamless deployment\n- **Python Telegram Bot** for the bot framework\n- **Swiss precision** for the inspiration 🇨🇭\n\n---\n\n**Built with Swiss precision for global scale. 🇨🇭**\n\n*Umbra - Where AI meets enterprise storage.*\n"
+# UMBRA 🎭
+
+**Universal Multi-Bot Reasoning Assistant**
+
+A comprehensive AI-powered platform combining Swiss-focused financial assistance, content creation, VPS management, and business orchestration with privacy-first architecture and Railway deployment.
+
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template)
+
+## 🎯 What is UMBRA?
+
+UMBRA is a modular AI assistant platform that provides:
+
+- **🇨🇭 Swiss Accountant**: OCR-powered expense tracking, QR-bill processing, and tax compliance
+- **🎨 Creator**: Multi-modal content generation (text, images, video, audio, music)
+- **🛠️ Concierge**: VPS management with Docker operations and system monitoring
+- **💼 Business**: Client lifecycle management and instance orchestration
+- **🏭 Production**: n8n workflow automation and orchestration
+- **💬 General Chat**: AI-powered conversations with OpenRouter integration
+
+All modules feature comprehensive security (RBAC), observability (Prometheus metrics), and audit compliance.
+
+## 🚀 Quick Start
+
+### 1-Click Railway Deployment
+
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template)
+
+### Manual Deployment
+
+1. **Clone & Setup**
+   ```bash
+   git clone https://github.com/silvioiatech/UMBRA.git
+   cd UMBRA
+   cp .env.example .env
+   # Edit .env with your configuration
+   ```
+
+2. **Configure Environment**
+   ```bash
+   # Required: Telegram Bot
+   TELEGRAM_BOT_TOKEN=your_telegram_bot_token
+   ALLOWED_USER_IDS=["user_id_1", "user_id_2"]
+   ALLOWED_ADMIN_IDS=["admin_user_id"]
+
+   # Required: OpenRouter AI
+   OPENROUTER_API_KEY=your_openrouter_api_key
+   OPENROUTER_DEFAULT_MODEL=anthropic/claude-3.5-sonnet:beta
+
+   # Required: R2 Storage
+   R2_ACCOUNT_ID=your_cloudflare_account_id
+   R2_ACCESS_KEY_ID=your_r2_access_key
+   R2_SECRET_ACCESS_KEY=your_r2_secret_key
+   R2_BUCKET=your_bucket_name
+   R2_ENDPOINT=https://your-account.r2.cloudflarestorage.com
+   ```
+
+3. **Deploy to Railway**
+   ```bash
+   # Connect your GitHub repo to Railway
+   # Railway will auto-deploy using the Dockerfile
+   # Set environment variables in Railway dashboard
+   ```
+
+4. **Verify Deployment**
+   ```bash
+   # Check health endpoint
+   curl https://your-app.railway.app/health
+
+   # Test in Telegram
+   /start
+   /status
+   ```
+
+## 🏗️ Architecture
+
+### Core Components
+
+```
+UMBRA/
+├── umbra/
+│   ├── core/                # F1-F4R2: Core runtime, AI, storage
+│   │   ├── config.py        # Configuration management
+│   │   ├── rbac.py          # Role-based access control
+│   │   ├── metrics.py       # Prometheus metrics
+│   │   ├── audit.py         # Audit trail system
+│   │   └── logging_mw.py    # Structured logging
+│   ├── modules/             # Business modules
+│   │   ├── swiss_accountant/# Swiss tax & finance assistant
+│   │   ├── creator/         # Multi-modal content generation
+│   │   ├── concierge/       # VPS management & Docker ops
+│   │   ├── business/        # Client lifecycle management
+│   │   └── production/      # n8n workflow orchestration
+│   ├── storage/             # F4R2: R2-first storage
+│   ├── ai/                  # F3R1: OpenRouter integration
+│   └── bot.py              # F2: Telegram bot interface
+├── Dockerfile              # Railway deployment
+└── main.py                 # Application entry point
+```
+
+### Technology Stack
+
+- **Runtime**: Python 3.11+ with FastAPI
+- **AI**: OpenRouter (Claude, GPT, Gemini)
+- **Storage**: Cloudflare R2 (S3-compatible)
+- **Database**: SQLite with F4R2 architecture
+- **Deployment**: Railway with Docker
+- **Monitoring**: Prometheus metrics + structured logging
+- **Security**: RBAC + audit trail + data redaction
+
+## 📋 Module Overview
+
+| Module | Status | Description | Key Features |
+|--------|--------|-------------|--------------|
+| **F1-F4R2** | ✅ | Core runtime + AI + storage | Railway deployment, OpenRouter, R2 storage |
+| **Swiss Accountant** | ✅ | Financial assistance | OCR receipts, QR-bills, tax reports, VAT compliance |
+| **Creator** | ✅ | Content generation | Text, images, video, audio, music, transcription |
+| **Concierge** | ✅ | VPS management | Docker ops, system monitoring, file management |
+| **Business** | ✅ | Client management | Instance gateway, lifecycle management |
+| **Production** | ✅ | Workflow automation | n8n integration, workflow orchestration |
+| **Security (SEC1)** | ✅ | Security & observability | RBAC, metrics, audit, redaction |
+
+## ⚙️ Configuration
+
+### Required Environment Variables
+
+```bash
+# Telegram Bot Configuration
+TELEGRAM_BOT_TOKEN=your_bot_token
+ALLOWED_USER_IDS=["123456789", "987654321"]
+ALLOWED_ADMIN_IDS=["123456789"]
+
+# OpenRouter AI Configuration
+OPENROUTER_API_KEY=sk-or-v1-...
+OPENROUTER_DEFAULT_MODEL=anthropic/claude-3.5-sonnet:beta
+
+# R2 Storage Configuration
+R2_ACCOUNT_ID=your_account_id
+R2_ACCESS_KEY_ID=your_access_key
+R2_SECRET_ACCESS_KEY=your_secret_key
+R2_BUCKET=umbra-storage
+R2_ENDPOINT=https://your-account.r2.cloudflarestorage.com
+
+# System Configuration
+LOCALE_TZ=Europe/Zurich
+PRIVACY_MODE=strict
+RATE_LIMIT_PER_MIN=20
+```
+
+### Optional: Creator Providers
+
+```bash
+# Image Generation
+CREATOR_IMAGE_PROVIDER=stability  # stability|openai|replicate
+CREATOR_STABILITY_API_KEY=sk-...
+CREATOR_OPENAI_API_KEY=sk-...
+CREATOR_REPLICATE_API_TOKEN=r8_...
+
+# Video Generation
+CREATOR_VIDEO_PROVIDER=pika      # pika|runway|replicate
+CREATOR_PIKA_API_KEY=pika_...
+CREATOR_RUNWAY_API_KEY=rw_...
+
+# Audio & Music
+CREATOR_TTS_PROVIDER=elevenlabs  # elevenlabs|openai
+CREATOR_ELEVENLABS_API_KEY=...
+CREATOR_MUSIC_PROVIDER=suno      # suno|replicate
+CREATOR_SUNO_API_KEY=...
+
+# Speech Recognition
+CREATOR_ASR_PROVIDER=deepgram    # deepgram|openai
+CREATOR_DEEPGRAM_API_KEY=...
+```
+
+### Optional: Production Module
+
+```bash
+# n8n Workflow Integration
+MAIN_N8N_URL=https://your-n8n.railway.app
+```
+
+## 🔧 Usage Examples
+
+### Telegram Commands
+
+```bash
+# General
+/start                    # Welcome message
+/help                     # Command overview
+/status                   # System status
+
+# Swiss Accountant
+"Upload receipt"          # OCR processing
+"Monthly report"          # Financial summary
+"Tax export 2024"         # Tax authority export
+
+# Creator
+"Generate image: sunset"  # Image creation
+"Create video script"     # Text generation
+"Transcribe audio"        # Speech-to-text
+
+# Concierge (Admin only)
+"System status"           # VPS monitoring
+"Docker containers"       # Container management
+"File backup"             # File operations
+```
+
+### API Usage
+
+```python
+from umbra.modules.swiss_accountant_mcp import SwissAccountantMCP
+
+# Initialize module
+accountant = SwissAccountantMCP()
+
+# Process receipt
+result = await accountant.execute('ingest_document', {
+    'user_id': 'user123',
+    'file_path': '/uploads/receipt.pdf'
+})
+
+# Generate monthly report
+report = await accountant.execute('monthly_report', {
+    'user_id': 'user123',
+    'year': 2024,
+    'month': 9
+})
+```
+
+## 📊 Monitoring
+
+### Health Checks
+
+```bash
+# Main application
+GET /health              # General health
+GET /health/ready        # Readiness check
+GET /health/live         # Liveness check
+
+# Metrics server (port 9090)
+GET /metrics             # Prometheus metrics
+GET /metrics?format=json # JSON format
+GET /metrics/summary     # Human-readable summary
+```
+
+### Key Metrics
+
+- `umbra_requests_total` - Request counts by module
+- `umbra_request_duration_seconds` - Performance metrics
+- `umbra_module_health` - Module availability
+- `umbra_creator_costs_usd` - AI operation costs
+- `umbra_rbac_checks_total` - Security metrics
+
+### Logs
+
+UMBRA uses structured JSON logging with automatic request tracking:
+
+```json
+{
+  "timestamp": "2024-09-08T10:30:00Z",
+  "level": "INFO",
+  "request_id": "req_abc123",
+  "user_id": "123456789",
+  "module": "swiss_accountant",
+  "action": "ingest_document",
+  "message": "Document processed successfully"
+}
+```
+
+## 🔐 Security
+
+### Role-Based Access Control
+
+- **User Role**: Access to general functionality
+- **Admin Role**: Full access including management operations
+- **Module-specific permissions**: Fine-grained access control
+
+### Data Protection
+
+- **PII Redaction**: Automatic masking of sensitive data
+- **Audit Trail**: Immutable activity logging
+- **Encrypted Storage**: Secure R2 storage with access controls
+- **Request Isolation**: User-scoped data access
+
+### Compliance
+
+- **GDPR Compatible**: Data portability and deletion rights
+- **Swiss Banking Secrecy**: Financial data protection
+- **Audit Compliance**: Comprehensive event logging
+
+## 🧪 Development
+
+### Local Setup
+
+```bash
+# Clone repository
+git clone https://github.com/silvioiatech/UMBRA.git
+cd UMBRA
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Setup environment
+cp .env.example .env
+# Edit .env with your configuration
+
+# Run locally
+python main.py
+
+# Or with Docker
+docker build -t umbra .
+docker run --env-file .env -p 8000:8000 umbra
+```
+
+### Testing
+
+```bash
+# Run all tests
+python -m pytest
+
+# Test specific modules
+python test_swiss_accountant.py
+python test_creator_pr_crt3.py
+python test_f4r2_integration.py
+
+# System integration test
+python system_test.py
+```
+
+### Module Development
+
+```python
+from umbra.core.module import BaseModule
+
+class MyModule(BaseModule):
+    def __init__(self):
+        super().__init__("my_module")
+    
+    async def handle_command(self, update, context):
+        # Your module logic here
+        pass
+```
+
+## 📚 Documentation
+
+- [Architecture Overview](./ARCHITECTURE.md)
+- [Project Map](./PROJECT_MAP.md)
+- [Action Plan](./ACTION_PLAN.md)
+- [F3R1 AI Integration](./F3R1_README.md)
+- [F4R2 Storage](./F4R2_README.md)
+- [Swiss Accountant](./umbra/modules/swiss_accountant/README.md)
+- [Creator Module](./CREATOR_README.md)
+- [Security Documentation](./PR_SEC1_COMPLETION_REPORT.md)
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests for new functionality
+5. Submit a pull request
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for detailed guidelines.
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](./LICENSE) file for details.
+
+## 🆘 Support
+
+- **Documentation**: Check the docs/ directory
+- **Issues**: Create a GitHub issue
+- **Community**: Join our discussions
+
+## 🚀 Railway Deployment
+
+### One-Click Deploy
+
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template)
+
+### Manual Railway Setup
+
+1. **Connect Repository**
+   - Fork this repository
+   - Connect to Railway dashboard
+   - Select your forked repository
+
+2. **Configure Environment**
+   - Add all required environment variables
+   - Ensure Telegram bot token is set
+   - Configure OpenRouter and R2 credentials
+
+3. **Deploy**
+   - Railway automatically builds using Dockerfile
+   - Monitor deployment logs
+   - Test `/health` endpoint
+
+4. **Verify**
+   ```bash
+   # Check deployment
+   curl https://your-app.railway.app/health
+   
+   # Test Telegram bot
+   /start
+   /status verbose
+   ```
+
+### Environment Setup
+
+Copy `.env.example` to set up your environment variables. All major providers are supported with graceful fallbacks.
+
+---
+
+**Built with ❤️ for the Swiss community and beyond**
+
+*UMBRA: Where AI meets Swiss precision in financial management, content creation, and system administration.*

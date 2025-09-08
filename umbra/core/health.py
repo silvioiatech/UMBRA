@@ -63,7 +63,8 @@ class HealthChecker:
             checks.update({
                 "system_resources": self._check_system_resources(),
                 "network": self._check_network(),
-                "configuration": self._check_configuration()
+                "configuration": self._check_configuration(),
+                "creator_providers": self._check_creator_providers()
             })
         
         try:
@@ -627,6 +628,84 @@ class HealthChecker:
                 response_time_ms=duration_ms,
                 configured=True,
                 details="Configuration check error",
+                error=str(e)
+            )
+    
+    async def _check_creator_providers(self) -> HealthCheck:
+        """Check Creator module providers configuration (CRT4)."""
+        start_time = time.time()
+        
+        try:
+            # Check if Creator module is available
+            try:
+                from ..modules.creator.model_provider_enhanced import EnhancedModelProviderManager
+                
+                provider_manager = EnhancedModelProviderManager(self.config)
+                config_status = provider_manager.get_configuration_status()
+                
+                duration_ms = (time.time() - start_time) * 1000
+                
+                # Analyze provider configuration
+                total_providers = config_status["configured_providers"]
+                active_instances = config_status["active_instances"]
+                capability_coverage = config_status["capability_coverage"]
+                missing_configs = len(config_status["missing_configurations"])
+                
+                # Check each capability
+                capabilities_ok = 0
+                capabilities_detail = []
+                
+                for capability, info in capability_coverage.items():
+                    provider_count = info.get("count", 0)
+                    best_provider = info.get("best_provider", "none")
+                    
+                    if provider_count > 0:
+                        capabilities_ok += 1
+                        capabilities_detail.append(f"{capability}:{best_provider}")
+                    else:
+                        capabilities_detail.append(f"{capability}:none")
+                
+                # Determine overall status
+                if capabilities_ok == 0:
+                    status = ServiceStatus.INACTIVE
+                    details = "No Creator providers configured"
+                elif capabilities_ok < 3:
+                    status = ServiceStatus.DEGRADED
+                    details = f"{capabilities_ok}/6 capabilities, missing {missing_configs} configs"
+                else:
+                    status = ServiceStatus.ACTIVE
+                    details = f"{capabilities_ok}/6 capabilities active, {total_providers} providers configured"
+                
+                # Add provider details in verbose mode
+                if capabilities_detail:
+                    details += f" [{', '.join(capabilities_detail[:4])}{'...' if len(capabilities_detail) > 4 else ''}]"
+                
+                return HealthCheck(
+                    service="creator_providers",
+                    status=status,
+                    response_time_ms=duration_ms,
+                    configured=total_providers > 0,
+                    details=details
+                )
+                
+            except ImportError:
+                duration_ms = (time.time() - start_time) * 1000
+                return HealthCheck(
+                    service="creator_providers",
+                    status=ServiceStatus.INACTIVE,
+                    response_time_ms=duration_ms,
+                    configured=False,
+                    details="Creator module not available"
+                )
+                
+        except Exception as e:
+            duration_ms = (time.time() - start_time) * 1000
+            return HealthCheck(
+                service="creator_providers",
+                status=ServiceStatus.ERROR,
+                response_time_ms=duration_ms,
+                configured=False,
+                details="Creator provider check error",
                 error=str(e)
             )
 
