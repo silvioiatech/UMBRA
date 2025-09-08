@@ -2,17 +2,16 @@
 Finance MCP Extensions - OCR, R2 Storage, and Advanced Features
 Production-ready extensions for the Enhanced Finance Module
 """
-import os
-import re
-import json
 import base64
 import hashlib
-from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Tuple
+import json
+import os
+import re
+from datetime import datetime
 from decimal import Decimal
+from typing import Any
+
 import httpx
-import asyncio
-from io import BytesIO
 
 
 class FinanceExtensions:
@@ -36,7 +35,7 @@ class FinanceExtensions:
         self.r2_bucket_name = os.getenv('CLOUDFLARE_R2_BUCKET', 'umbra-finance-docs')
         self.r2_endpoint = f"https://{self.r2_account_id}.r2.cloudflarestorage.com"
 
-        # Investment API Configuration  
+        # Investment API Configuration
         self.stock_api_provider = os.getenv('FINANCE_STOCK_API_PROVIDER', 'alpha_vantage')
         self.alpha_vantage_key = os.getenv('ALPHA_VANTAGE_API_KEY')
         self.finnhub_key = os.getenv('FINNHUB_API_KEY')
@@ -71,7 +70,7 @@ class FinanceExtensions:
                 )
             """)
 
-            # Investment prices table  
+            # Investment prices table
             self.db.execute("""
                 CREATE TABLE IF NOT EXISTS investment_prices (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -119,19 +118,19 @@ class FinanceExtensions:
     # RECEIPT OCR METHODS
     # ===============================
 
-    async def process_receipt_image(self, image_data: bytes, transaction_id: int = None, 
+    async def process_receipt_image(self, image_data: bytes, transaction_id: int = None,
                                   user_id: int = None, filename: str = "receipt.jpg") -> str:
         """Process receipt image with OCR and extract transaction data."""
         try:
             # Generate file hash for deduplication
             file_hash = hashlib.md5(image_data).hexdigest()
-            
+
             # Check if already processed
             existing = self.db.query_one(
-                "SELECT id, ocr_text FROM receipt_documents WHERE file_hash = ?", 
+                "SELECT id, ocr_text FROM receipt_documents WHERE file_hash = ?",
                 (file_hash,)
             )
-            
+
             if existing:
                 return f"✅ Receipt already processed (ID: {existing['id']})\n\n{existing['ocr_text'][:200]}..."
 
@@ -142,7 +141,7 @@ class FinanceExtensions:
 
             # Upload to R2 storage
             r2_result = await self._upload_to_r2(image_data, filename, file_hash)
-            
+
             # Extract transaction data from OCR text
             extracted_data = self._extract_transaction_from_receipt(ocr_result['text'])
 
@@ -189,7 +188,7 @@ class FinanceExtensions:
             self.logger.error(f"Receipt processing failed: {e}")
             return f"❌ Receipt processing failed: {str(e)[:100]}"
 
-    async def _perform_ocr(self, image_data: bytes) -> Dict[str, Any]:
+    async def _perform_ocr(self, image_data: bytes) -> dict[str, Any]:
         """Perform OCR on image data using configured provider."""
         if self.ocr_provider == 'openrouter' and self.openrouter_key:
             return await self._ocr_with_openrouter(image_data)
@@ -198,12 +197,12 @@ class FinanceExtensions:
         else:
             return await self._ocr_fallback(image_data)
 
-    async def _ocr_with_openrouter(self, image_data: bytes) -> Dict[str, Any]:
+    async def _ocr_with_openrouter(self, image_data: bytes) -> dict[str, Any]:
         """Perform OCR using OpenRouter's vision models."""
         try:
             # Convert image to base64
             image_b64 = base64.b64encode(image_data).decode('utf-8')
-            
+
             async with httpx.AsyncClient(timeout=30) as client:
                 response = await client.post(
                     "https://openrouter.ai/api/v1/chat/completions",
@@ -267,7 +266,7 @@ Return the text as clearly structured as possible."""
                 'provider': 'openrouter'
             }
 
-    async def _ocr_with_azure(self, image_data: bytes) -> Dict[str, Any]:
+    async def _ocr_with_azure(self, image_data: bytes) -> dict[str, Any]:
         """Perform OCR using Azure Computer Vision."""
         try:
             if not self.azure_ocr_endpoint or not self.azure_ocr_key:
@@ -291,7 +290,7 @@ Return the text as clearly structured as possible."""
 
                 if response.status_code == 200:
                     result = response.json()
-                    
+
                     # Extract text from Azure response
                     text_lines = []
                     if 'readResult' in result and 'pages' in result['readResult']:
@@ -299,7 +298,7 @@ Return the text as clearly structured as possible."""
                             if 'lines' in page:
                                 for line in page['lines']:
                                     text_lines.append(line['text'])
-                    
+
                     extracted_text = '\n'.join(text_lines)
                     confidence = result.get('readResult', {}).get('confidence', 0) * 100
 
@@ -323,7 +322,7 @@ Return the text as clearly structured as possible."""
                 'provider': 'azure'
             }
 
-    async def _ocr_fallback(self, image_data: bytes) -> Dict[str, Any]:
+    async def _ocr_fallback(self, image_data: bytes) -> dict[str, Any]:
         """Fallback OCR simulation when no real OCR provider is available."""
         return {
             'success': True,
@@ -349,7 +348,7 @@ Thank you!""",
             'provider': 'simulation'
         }
 
-    def _extract_transaction_from_receipt(self, ocr_text: str) -> Dict[str, Any]:
+    def _extract_transaction_from_receipt(self, ocr_text: str) -> dict[str, Any]:
         """Extract structured transaction data from OCR text."""
         extracted = {
             'merchant': None,
@@ -363,7 +362,7 @@ Thank you!""",
         }
 
         lines = ocr_text.split('\n')
-        
+
         # Extract merchant (usually first non-empty line)
         for line in lines[:5]:
             line = line.strip()
@@ -377,7 +376,7 @@ Thank you!""",
             r'amount[:\s]*\$?([\d,]+\.?\d*)',
             r'\$\s*([\d,]+\.\d{2})\s*$'
         ]
-        
+
         for line in lines:
             line_lower = line.lower()
             for pattern in total_patterns:
@@ -399,7 +398,7 @@ Thank you!""",
             r'(\d{4}-\d{2}-\d{2})',
             r'(\d{1,2}-\d{1,2}-\d{4})'
         ]
-        
+
         for line in lines:
             for pattern in date_patterns:
                 match = re.search(pattern, line)
@@ -429,23 +428,23 @@ Thank you!""",
     def _categorize_merchant(self, merchant_name: str) -> str:
         """Suggest category based on merchant name."""
         merchant_lower = merchant_name.lower()
-        
+
         # Food & Dining
         if any(word in merchant_lower for word in ['restaurant', 'cafe', 'food', 'pizza', 'burger', 'coffee', 'diner']):
             return 'Food & Dining'
-        
+
         # Gas Stations
         if any(word in merchant_lower for word in ['shell', 'exxon', 'bp', 'chevron', 'gas', 'fuel']):
             return 'Transportation'
-        
+
         # Grocery
         if any(word in merchant_lower for word in ['market', 'grocery', 'walmart', 'target', 'kroger']):
             return 'Food & Dining'
-        
+
         # Default
         return 'Shopping'
 
-    async def _suggest_transaction_from_receipt(self, extracted_data: Dict[str, Any], user_id: int = None) -> str:
+    async def _suggest_transaction_from_receipt(self, extracted_data: dict[str, Any], user_id: int = None) -> str:
         """Suggest creating a transaction from receipt data."""
         if not extracted_data.get('total_amount'):
             return ""
@@ -464,10 +463,10 @@ Would you like me to create this transaction? Reply with:
 "create transaction {amount_str} {merchant}" """
 
     # ===============================
-    # CLOUDFLARE R2 STORAGE METHODS  
+    # CLOUDFLARE R2 STORAGE METHODS
     # ===============================
 
-    async def _upload_to_r2(self, file_data: bytes, filename: str, file_hash: str) -> Dict[str, Any]:
+    async def _upload_to_r2(self, file_data: bytes, filename: str, file_hash: str) -> dict[str, Any]:
         """Upload file to Cloudflare R2 storage."""
         try:
             if not all([self.r2_account_id, self.r2_access_key, self.r2_secret_key]):
@@ -481,18 +480,18 @@ Would you like me to create this transaction? Reply with:
             # Generate unique key
             timestamp = datetime.now().strftime('%Y/%m/%d')
             key = f"receipts/{timestamp}/{file_hash}_{filename}"
-            
+
             # Create S3-compatible request for R2
-            from botocore.session import Session
-            from botocore.config import Config
             import boto3
+            from botocore.config import Config
+            from botocore.session import Session
 
             # Configure R2 client
             session = boto3.Session(
                 aws_access_key_id=self.r2_access_key,
                 aws_secret_access_key=self.r2_secret_key,
             )
-            
+
             r2_client = session.client(
                 's3',
                 endpoint_url=self.r2_endpoint,
@@ -554,14 +553,14 @@ Would you like me to create this transaction? Reply with:
                 return "No receipt documents found. Upload one with: 'process receipt [image]'"
 
             response = "**📄 Receipt Documents**\n"
-            
+
             for doc in documents:
                 created_date = datetime.fromisoformat(doc['created_at']).strftime('%m/%d/%Y')
                 file_size = f"{doc['file_size'] / 1024:.1f}KB" if doc['file_size'] else "Unknown"
-                
+
                 status_icon = "🔗" if doc['transaction_id'] else "📋"
                 link_info = f"→ {doc['transaction_description']} (${doc['transaction_amount']})" if doc['transaction_id'] else "Not linked to transaction"
-                
+
                 response += f"""
 {status_icon} **#{doc['id']}** {doc['file_name']} ({file_size})
    Date: {created_date} | OCR: {doc['ocr_confidence'] or 0:.0f}%
@@ -640,7 +639,7 @@ Would you like me to create this transaction? Reply with:
     # INVESTMENT API INTEGRATION
     # ===============================
 
-    async def get_stock_quote(self, symbol: str) -> Dict[str, Any]:
+    async def get_stock_quote(self, symbol: str) -> dict[str, Any]:
         """Get real-time stock quote."""
         try:
             if self.stock_api_provider == 'alpha_vantage' and self.alpha_vantage_key:
@@ -658,7 +657,7 @@ Would you like me to create this transaction? Reply with:
                 'symbol': symbol
             }
 
-    async def _get_quote_alpha_vantage(self, symbol: str) -> Dict[str, Any]:
+    async def _get_quote_alpha_vantage(self, symbol: str) -> dict[str, Any]:
         """Get stock quote from Alpha Vantage API."""
         try:
             async with httpx.AsyncClient(timeout=10) as client:
@@ -674,7 +673,7 @@ Would you like me to create this transaction? Reply with:
                 if response.status_code == 200:
                     data = response.json()
                     quote_data = data.get('Global Quote', {})
-                    
+
                     if not quote_data:
                         return {
                             'success': False,
@@ -706,7 +705,7 @@ Would you like me to create this transaction? Reply with:
                 'symbol': symbol
             }
 
-    async def _get_quote_finnhub(self, symbol: str) -> Dict[str, Any]:
+    async def _get_quote_finnhub(self, symbol: str) -> dict[str, Any]:
         """Get stock quote from Finnhub API."""
         try:
             async with httpx.AsyncClient(timeout=10) as client:
@@ -720,7 +719,7 @@ Would you like me to create this transaction? Reply with:
 
                 if response.status_code == 200:
                     data = response.json()
-                    
+
                     if data.get('c') == 0:  # Current price is 0 means error
                         return {
                             'success': False,
@@ -755,14 +754,14 @@ Would you like me to create this transaction? Reply with:
                 'symbol': symbol
             }
 
-    async def _get_quote_fallback(self, symbol: str) -> Dict[str, Any]:
+    async def _get_quote_fallback(self, symbol: str) -> dict[str, Any]:
         """Fallback quote simulation when no API is configured."""
         import random
-        
+
         # Generate realistic fake data for testing
         base_price = random.uniform(50, 500)
         change = random.uniform(-10, 10)
-        
+
         return {
             'success': True,
             'symbol': symbol,
@@ -792,7 +791,7 @@ Would you like me to create this transaction? Reply with:
             for investment in investments:
                 symbol = investment['symbol']
                 quote = await self.get_stock_quote(symbol)
-                
+
                 if quote['success']:
                     # Update investment price
                     self.db.execute("""
@@ -813,7 +812,7 @@ Would you like me to create this transaction? Reply with:
                     errors.append(f"{symbol}: {quote['error']}")
 
             response = f"**📈 Investment Prices Updated**\n\nUpdated: {updated_count} symbols"
-            
+
             if errors:
                 response += f"\nErrors: {len(errors)}"
                 for error in errors[:3]:  # Show first 3 errors
@@ -835,7 +834,7 @@ Would you like me to create this transaction? Reply with:
             tax_categories = [
                 ('Business Expenses', True, 'business_expense', 100, 'US_FEDERAL'),
                 ('Office Supplies', True, 'business_expense', 100, 'US_FEDERAL'),
-                ('Travel', True, 'business_travel', 100, 'US_FEDERAL'), 
+                ('Travel', True, 'business_travel', 100, 'US_FEDERAL'),
                 ('Meals', True, 'business_meals', 50, 'US_FEDERAL'),  # 50% deductible
                 ('Healthcare', True, 'medical', 100, 'US_FEDERAL'),
                 ('Charitable Donations', True, 'charity', 100, 'US_FEDERAL'),
@@ -867,7 +866,7 @@ Would you like me to create this transaction? Reply with:
                         (expense_category, tax_deductible, tax_category, deduction_percentage, tax_year, jurisdiction)
                         VALUES (?, ?, ?, ?, ?, ?)
                     """, (category, deductible, tax_cat, percentage, self.tax_year, jurisdiction))
-                
+
                 updated_count += 1
 
             return f"""**📋 Tax Categories Setup Complete**
@@ -1002,7 +1001,7 @@ Use 'export tax data' to get detailed records for your accountant."""
 
             # Save export file (in production, this would save to file system or R2)
             export_filename = f"tax_export_{tax_year}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{file_extension}"
-            
+
             # For now, return summary (in production, would provide download link)
             deductible_count = sum(1 for t in transactions if t['tax_deductible'])
             total_deductible = sum(Decimal(str(t['amount'])) for t in transactions if t['tax_deductible'])
@@ -1036,7 +1035,7 @@ File ready for download or email to your accountant."""
 
             # Try to detect CSV format
             header = lines[0].lower()
-            
+
             # Common bank CSV formats
             if 'date' in header and 'amount' in header and 'description' in header:
                 return await self._import_generic_csv(lines, account_id, user_id)
@@ -1050,12 +1049,12 @@ File ready for download or email to your accountant."""
         except Exception as e:
             return f"❌ CSV import failed: {str(e)[:100]}"
 
-    async def _import_generic_csv(self, lines: List[str], account_id: int, user_id: int = None) -> str:
+    async def _import_generic_csv(self, lines: list[str], account_id: int, user_id: int = None) -> str:
         """Import generic CSV format."""
         try:
             import csv
             from io import StringIO
-            
+
             csv_reader = csv.DictReader(StringIO('\n'.join(lines)))
             imported_count = 0
             errors = []
@@ -1079,7 +1078,7 @@ File ready for download or email to your accountant."""
 
                     # Parse amount
                     amount = float(amount_str.replace('$', '').replace(',', '').replace('(', '-').replace(')', ''))
-                    
+
                     # Determine transaction type
                     transaction_type = 'income' if amount > 0 else 'expense'
                     amount = abs(amount)
@@ -1123,7 +1122,7 @@ File ready for download or email to your accountant."""
     def _auto_categorize_transaction(self, description: str, transaction_type: str) -> str:
         """Auto-categorize transaction based on description (simplified version)."""
         desc_lower = description.lower()
-        
+
         # Simple keyword matching
         if any(word in desc_lower for word in ['grocery', 'food', 'restaurant', 'coffee']):
             return 'Food & Dining'
@@ -1139,10 +1138,10 @@ File ready for download or email to your accountant."""
             return 'Other'
 
     # Additional placeholder methods for future features
-    async def _import_chase_csv(self, lines: List[str], account_id: int, user_id: int = None) -> str:
+    async def _import_chase_csv(self, lines: list[str], account_id: int, user_id: int = None) -> str:
         """Import Chase Bank CSV format (placeholder)."""
         return "🚧 Chase CSV format support coming soon!"
 
-    async def _import_boa_csv(self, lines: List[str], account_id: int, user_id: int = None) -> str:
+    async def _import_boa_csv(self, lines: list[str], account_id: int, user_id: int = None) -> str:
         """Import Bank of America CSV format (placeholder)."""
         return "🚧 Bank of America CSV format support coming soon!"

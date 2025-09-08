@@ -3,16 +3,14 @@ Unified storage interface that works with both R2 and SQLite.
 Provides a migration path from SQLite to R2 storage.
 """
 
-import asyncio
 import json
-import logging
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Union
 from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import Any, Union
 
-from .database import DatabaseManager
-from .r2_manager import R2StorageManager, ManifestEntry, R2Object
 from ..core.logger import get_logger
+from .database import DatabaseManager
+from .r2_manager import R2StorageManager
 
 logger = get_logger("umbra.storage.unified")
 
@@ -23,23 +21,23 @@ class StorageRecord:
     id: str
     module: str
     user_id: str
-    data: Dict[str, Any]
+    data: dict[str, Any]
     timestamp: datetime
     storage_backend: str  # 'sqlite' or 'r2'
-    storage_key: Optional[str] = None  # R2 key or SQLite row identifier
+    storage_key: str | None = None  # R2 key or SQLite row identifier
 
 
 class UnifiedStorageManager:
     """Unified storage manager that can use R2 or SQLite as backend."""
-    
+
     def __init__(self, config):
         """Initialize unified storage manager."""
         self.config = config
         self.logger = logger
-        
+
         # Determine storage backend
         self.use_r2 = config.feature_r2_storage and config.STORAGE_BACKEND == 'r2'
-        
+
         # Initialize appropriate storage backend(s)
         if self.use_r2:
             try:
@@ -49,31 +47,31 @@ class UnifiedStorageManager:
             except (ImportError, ValueError) as e:
                 self.logger.warning(f"R2 backend unavailable: {e}. Falling back to SQLite.")
                 self.use_r2 = False
-                
+
         if not self.use_r2:
             self.db_manager = DatabaseManager(config.DATABASE_PATH)
             self.primary_backend = 'sqlite'
             self.logger.info("Using SQLite as primary storage backend")
-            
+
         # For hybrid mode (future migration support)
         self.hybrid_mode = config.STORAGE_BACKEND == 'hybrid'
         if self.hybrid_mode and self.use_r2:
             self.db_manager = DatabaseManager(config.DATABASE_PATH)
             self.logger.info("Hybrid mode enabled - using both R2 and SQLite")
 
-    async def store_data(self, module: str, user_id: str, data: Dict[str, Any], 
+    async def store_data(self, module: str, user_id: str, data: dict[str, Any],
                          data_format: str = 'json') -> StorageRecord:
         """Store data using the configured backend."""
-        timestamp = datetime.now(timezone.utc)
+        timestamp = datetime.now(UTC)
         record_id = f"{module}_{user_id}_{int(timestamp.timestamp())}"
-        
+
         if self.use_r2:
             return await self._store_to_r2(record_id, module, user_id, data, data_format, timestamp)
         else:
             return await self._store_to_sqlite(record_id, module, user_id, data, timestamp)
 
-    async def _store_to_r2(self, record_id: str, module: str, user_id: str, 
-                           data: Dict[str, Any], data_format: str, timestamp: datetime) -> StorageRecord:
+    async def _store_to_r2(self, record_id: str, module: str, user_id: str,
+                           data: dict[str, Any], data_format: str, timestamp: datetime) -> StorageRecord:
         """Store data to R2."""
         try:
             if data_format == 'jsonl' and isinstance(data.get('records'), list):
@@ -103,7 +101,7 @@ class UnifiedStorageManager:
                     metadata={'record_id': record_id, 'module': module, 'user_id': user_id}
                 )
                 storage_key = obj.key
-            
+
             return StorageRecord(
                 id=record_id,
                 module=module,
@@ -113,7 +111,7 @@ class UnifiedStorageManager:
                 storage_backend='r2',
                 storage_key=storage_key
             )
-            
+
         except Exception as e:
             self.logger.error(f"Failed to store data to R2: {e}")
             # Fallback to SQLite if R2 fails and hybrid mode is enabled
@@ -122,8 +120,8 @@ class UnifiedStorageManager:
                 return await self._store_to_sqlite(record_id, module, user_id, data, timestamp)
             raise
 
-    async def _store_to_sqlite(self, record_id: str, module: str, user_id: str, 
-                               data: Dict[str, Any], timestamp: datetime) -> StorageRecord:
+    async def _store_to_sqlite(self, record_id: str, module: str, user_id: str,
+                               data: dict[str, Any], timestamp: datetime) -> StorageRecord:
         """Store data to SQLite."""
         try:
             self.db_manager.set_module_data(
@@ -132,7 +130,7 @@ class UnifiedStorageManager:
                 key=record_id,
                 value=data
             )
-            
+
             return StorageRecord(
                 id=record_id,
                 module=module,
@@ -142,19 +140,19 @@ class UnifiedStorageManager:
                 storage_backend='sqlite',
                 storage_key=record_id
             )
-            
+
         except Exception as e:
             self.logger.error(f"Failed to store data to SQLite: {e}")
             raise
 
-    async def retrieve_data(self, module: str, user_id: str, record_id: str = None) -> Union[StorageRecord, List[StorageRecord]]:
+    async def retrieve_data(self, module: str, user_id: str, record_id: str = None) -> Union[StorageRecord, list[StorageRecord]]:
         """Retrieve data from the configured backend."""
         if self.use_r2:
             return await self._retrieve_from_r2(module, user_id, record_id)
         else:
             return await self._retrieve_from_sqlite(module, user_id, record_id)
 
-    async def _retrieve_from_r2(self, module: str, user_id: str, record_id: str = None) -> Union[StorageRecord, List[StorageRecord]]:
+    async def _retrieve_from_r2(self, module: str, user_id: str, record_id: str = None) -> Union[StorageRecord, list[StorageRecord]]:
         """Retrieve data from R2."""
         try:
             if record_id:
@@ -172,7 +170,7 @@ class UnifiedStorageManager:
                             storage_backend='r2',
                             storage_key=entry.key
                         )
-                
+
                 # Try JSON blob format
                 blob_key = f"json_blobs/{module}_{user_id}_{record_id}.json"
                 try:
@@ -182,13 +180,13 @@ class UnifiedStorageManager:
                         module=module,
                         user_id=user_id,
                         data=data,
-                        timestamp=datetime.now(timezone.utc),  # We don't have exact timestamp for blobs
+                        timestamp=datetime.now(UTC),  # We don't have exact timestamp for blobs
                         storage_backend='r2',
                         storage_key=blob_key
                     )
                 except:
                     pass
-                    
+
                 return None
             else:
                 # Return all records for module/user
@@ -208,14 +206,14 @@ class UnifiedStorageManager:
                         ))
                     except Exception as e:
                         self.logger.warning(f"Failed to load data from {entry.key}: {e}")
-                        
+
                 return records
-                
+
         except Exception as e:
             self.logger.error(f"Failed to retrieve data from R2: {e}")
             raise
 
-    async def _retrieve_from_sqlite(self, module: str, user_id: str, record_id: str = None) -> Union[StorageRecord, List[StorageRecord]]:
+    async def _retrieve_from_sqlite(self, module: str, user_id: str, record_id: str = None) -> Union[StorageRecord, list[StorageRecord]]:
         """Retrieve data from SQLite."""
         try:
             if record_id:
@@ -226,7 +224,7 @@ class UnifiedStorageManager:
                         module=module,
                         user_id=user_id,
                         data=data,
-                        timestamp=datetime.now(timezone.utc),  # SQLite doesn't store timestamps for module data
+                        timestamp=datetime.now(UTC),  # SQLite doesn't store timestamps for module data
                         storage_backend='sqlite',
                         storage_key=record_id
                     )
@@ -241,17 +239,17 @@ class UnifiedStorageManager:
                         module=module,
                         user_id=user_id,
                         data=data,
-                        timestamp=datetime.now(timezone.utc),
+                        timestamp=datetime.now(UTC),
                         storage_backend='sqlite',
                         storage_key=key
                     ))
                 return records
-                
+
         except Exception as e:
             self.logger.error(f"Failed to retrieve data from SQLite: {e}")
             raise
 
-    async def search_data(self, module: str, user_id: str, query: str) -> List[StorageRecord]:
+    async def search_data(self, module: str, user_id: str, query: str) -> list[StorageRecord]:
         """Search data across the storage backend."""
         if self.use_r2:
             try:
@@ -271,7 +269,7 @@ class UnifiedStorageManager:
                         ))
                     except Exception as e:
                         self.logger.warning(f"Failed to load search result from {entry.key}: {e}")
-                        
+
                 return records
             except Exception as e:
                 self.logger.error(f"Failed to search R2 data: {e}")
@@ -282,7 +280,7 @@ class UnifiedStorageManager:
                 all_data = self.db_manager.get_module_data(int(user_id), module)
                 results = []
                 query_lower = query.lower()
-                
+
                 for key, data in all_data.items():
                     data_str = json.dumps(data, default=str).lower()
                     if query_lower in data_str or query_lower in key.lower():
@@ -291,17 +289,17 @@ class UnifiedStorageManager:
                             module=module,
                             user_id=user_id,
                             data=data,
-                            timestamp=datetime.now(timezone.utc),
+                            timestamp=datetime.now(UTC),
                             storage_backend='sqlite',
                             storage_key=key
                         ))
-                        
+
                 return results
             except Exception as e:
                 self.logger.error(f"Failed to search SQLite data: {e}")
                 return []
 
-    async def generate_presigned_url(self, storage_key: str, expiration: int = 3600) -> Optional[str]:
+    async def generate_presigned_url(self, storage_key: str, expiration: int = 3600) -> str | None:
         """Generate presigned URL for R2 objects."""
         if self.use_r2:
             try:
@@ -324,12 +322,12 @@ class UnifiedStorageManager:
                     if record_id in (entry.metadata or {}).get('record_id', ''):
                         deleted = await self.r2_manager.delete_object(entry.key)
                         break
-                
+
                 # Try JSON blob format if not found in manifest
                 if not deleted:
                     blob_key = f"json_blobs/{module}_{user_id}_{record_id}.json"
                     deleted = await self.r2_manager.delete_object(blob_key)
-                    
+
                 return deleted
             except Exception as e:
                 self.logger.error(f"Failed to delete data from R2: {e}")
@@ -343,14 +341,14 @@ class UnifiedStorageManager:
                 self.logger.error(f"Failed to delete data from SQLite: {e}")
                 return False
 
-    async def get_storage_info(self) -> Dict[str, Any]:
+    async def get_storage_info(self) -> dict[str, Any]:
         """Get information about the storage backend."""
         info = {
             'backend': self.primary_backend,
             'hybrid_mode': self.hybrid_mode,
             'r2_available': self.use_r2
         }
-        
+
         if self.use_r2:
             try:
                 # Get some R2 statistics
@@ -359,20 +357,20 @@ class UnifiedStorageManager:
                 info['r2_bucket'] = self.config.R2_BUCKET
             except Exception as e:
                 info['r2_error'] = str(e)
-                
+
         return info
 
 
 # Global unified storage manager instance
-_storage_manager: Optional[UnifiedStorageManager] = None
+_storage_manager: UnifiedStorageManager | None = None
 
 
 async def get_storage_manager() -> UnifiedStorageManager:
     """Get or create the global unified storage manager instance."""
     global _storage_manager
-    
+
     if _storage_manager is None:
         from ..core.config import config
         _storage_manager = UnifiedStorageManager(config)
-    
+
     return _storage_manager

@@ -62,7 +62,7 @@ def print_verbose_status_demo():
     print("**🔧 Core Services:**")
     print("🟢 Telegram: active 🟢")
     print("   ↳ Bot token configured and ready")
-    print("🟢 Openrouter: active 🟢")  
+    print("🟢 Openrouter: active 🟢")
     print("   ↳ Connected, model: anthropic/claude-3.5-sonnet:beta")
     print("🟡 R2 Storage: degraded ⚪")
     print("   ↳ R2 credentials not fully configured")
@@ -100,7 +100,7 @@ def print_health_architecture():
     print()
     print("📦 **Core Services (Always Checked):**")
     print("   🔸 Telegram - Bot token & API connectivity")
-    print("   🔸 OpenRouter - AI provider availability")  
+    print("   🔸 OpenRouter - AI provider availability")
     print("   🔸 R2 Storage - Cloudflare R2 configuration")
     print("   🔸 Database - SQLite performance & connectivity")
     print()
@@ -185,25 +185,25 @@ async def run_live_demo():
     print("-" * 40)
     print()
     print("Running actual health checks...")
-    
+
     try:
-        from umbra.core.health import HealthChecker, ServiceStatus
         from umbra.core.config import config
-        
+        from umbra.core.health import HealthChecker, ServiceStatus
+
         # Create health checker
         health_checker = HealthChecker(config)
-        
+
         print("⏱️ Starting health checks (max 10s timeout)...")
         import time
         start_time = time.time()
-        
+
         # Run basic checks
         results = await health_checker.check_all_services(verbose=False)
-        
+
         duration = time.time() - start_time
         print(f"✅ Completed in {duration:.2f}s")
         print()
-        
+
         # Show results
         print("📊 **Live Results:**")
         for service, result in results.items():
@@ -214,17 +214,17 @@ async def run_live_demo():
                 ServiceStatus.ERROR: "🔴",
                 ServiceStatus.UNKNOWN: "❓"
             }.get(result.status, "❓")
-            
+
             print(f"   {status_emoji} {service}: {result.status.value}")
             if result.details:
                 print(f"      └─ {result.details}")
-        
+
         # Summary
         active_count = len([r for r in results.values() if r.status == ServiceStatus.ACTIVE])
         total_count = len(results)
-        
+
         print(f"\n📈 **Summary:** {active_count}/{total_count} services active")
-        
+
     except Exception as e:
         print(f"❌ Demo failed: {e}")
         print("   (This is expected if not in a proper Umbra environment)")
@@ -232,22 +232,22 @@ async def run_live_demo():
 def main():
     """Main demo function."""
     print_header()
-    
+
     print_basic_status_demo()
     print_verbose_status_demo()
     print_health_architecture()
     print_status_states()
     print_usage_examples()
-    
+
     # Ask if user wants live demo
     print("🔥 OPTIONAL: Live Demo")
     print("-" * 40)
     response = input("Run live health check demo? (y/N): ").lower().strip()
-    
+
     if response in ['y', 'yes']:
         print()
         asyncio.run(run_live_demo())
-    
+
     print("\n" + "🎯" + "="*60)
     print("✅ BOT2 Demo Complete!")
     print()

@@ -4,13 +4,13 @@ Handles append-only JSONL files and Parquet partitions with optimistic locking.
 """
 import json
 import time
-import calendar
-from typing import Dict, Any, List, Optional, Union, Iterator
-from datetime import datetime, timezone
+from collections.abc import Iterator
 from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import Any
 
-from .objects import ObjectStorage, ObjectNotFoundError, ObjectStorageError
 from ..core.logger import get_context_logger
+from .objects import ObjectNotFoundError, ObjectStorage, ObjectStorageError
 
 logger = get_context_logger(__name__)
 
@@ -28,8 +28,8 @@ except ImportError:
 class ManifestEntry:
     """Single entry in a manifest file."""
     timestamp: str
-    data: Dict[str, Any]
-    entry_id: Optional[str] = None
+    data: dict[str, Any]
+    entry_id: str | None = None
 
 class ManifestError(Exception):
     """Base exception for manifest operations."""
@@ -46,11 +46,11 @@ class ManifestManager:
     F4R2 Implementation: Provides append-only JSONL files for real-time data
     and Parquet files for analytical workloads with automatic partitioning.
     """
-    
+
     def __init__(self, storage: ObjectStorage):
         self.storage = storage
         self.logger = get_context_logger(__name__)
-        
+
         self.logger.info(
             "Manifest manager initialized",
             extra={
@@ -58,39 +58,39 @@ class ManifestManager:
                 "parquet_available": PARQUET_AVAILABLE
             }
         )
-    
+
     def is_available(self) -> bool:
         """Check if manifest manager is available."""
         return self.storage.is_available()
-    
-    def _get_jsonl_key(self, module: str, name: str, user_id: Optional[int] = None) -> str:
+
+    def _get_jsonl_key(self, module: str, name: str, user_id: int | None = None) -> str:
         """Generate JSONL manifest key."""
         if user_id:
             return f"manifests/{module}/{name}-{user_id}.jsonl"
         else:
             return f"manifests/{module}/{name}.jsonl"
-    
+
     def _get_parquet_key(
-        self, 
-        module: str, 
-        name: str, 
+        self,
+        module: str,
+        name: str,
         partition: str,
-        user_id: Optional[int] = None
+        user_id: int | None = None
     ) -> str:
         """Generate Parquet manifest key with partitioning."""
         if user_id:
             return f"manifests/{module}/{name}-{user_id}-{partition}.parquet"
         else:
             return f"manifests/{module}/{name}-{partition}.parquet"
-    
+
     def append_jsonl(
         self,
         module: str,
         name: str,
-        entry: Dict[str, Any],
-        user_id: Optional[int] = None,
+        entry: dict[str, Any],
+        user_id: int | None = None,
         max_retries: int = 3
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Append entry to JSONL manifest with ETag optimistic concurrency.
         
@@ -104,37 +104,37 @@ class ManifestManager:
         Returns:
             Dict with append result and manifest info
         """
-        
+
         if not self.is_available():
             raise ManifestError("Manifest manager not available")
-        
+
         jsonl_key = self._get_jsonl_key(module, name, user_id)
-        
+
         # Create manifest entry with timestamp
         manifest_entry = ManifestEntry(
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             data=entry,
             entry_id=f"{int(time.time() * 1000000)}"  # Microsecond timestamp
         )
-        
+
         # JSON line to append
         json_line = json.dumps({
             "timestamp": manifest_entry.timestamp,
             "entry_id": manifest_entry.entry_id,
             "data": manifest_entry.data
         }, ensure_ascii=False) + "\n"
-        
+
         for attempt in range(max_retries + 1):
             try:
                 # Get current manifest if it exists
                 current_data = ""
                 current_etag = None
-                
+
                 try:
                     existing = self.storage.get_object(jsonl_key)
                     current_data = existing['data'].decode('utf-8')
                     current_etag = existing['etag']
-                    
+
                     self.logger.debug(
                         "Found existing JSONL manifest",
                         extra={
@@ -143,17 +143,17 @@ class ManifestManager:
                             "size_bytes": len(current_data)
                         }
                     )
-                    
+
                 except ObjectNotFoundError:
                     # New manifest file
                     self.logger.debug(
                         "Creating new JSONL manifest",
                         extra={"key": jsonl_key}
                     )
-                
+
                 # Append new line
                 new_data = current_data + json_line
-                
+
                 # Try to store with ETag check
                 try:
                     metadata = {}
@@ -161,7 +161,7 @@ class ManifestManager:
                         # R2 uses If-Match header for optimistic concurrency
                         # We'll simulate this by checking the ETag after upload
                         pass
-                    
+
                     result = self.storage.put_object(
                         key=jsonl_key,
                         data=new_data.encode('utf-8'),
@@ -175,7 +175,7 @@ class ManifestManager:
                             "last_updated": manifest_entry.timestamp
                         }
                     )
-                    
+
                     self.logger.info(
                         "JSONL manifest entry appended",
                         extra={
@@ -186,7 +186,7 @@ class ManifestManager:
                             "total_size": len(new_data)
                         }
                     )
-                    
+
                     return {
                         "success": True,
                         "key": jsonl_key,
@@ -195,12 +195,12 @@ class ManifestManager:
                         "attempt": attempt + 1,
                         "total_entries": len(new_data.strip().split('\n')) if new_data.strip() else 0
                     }
-                    
+
                 except ObjectStorageError as e:
                     if "concurrency" in str(e).lower() and attempt < max_retries:
                         # ETag conflict - retry
                         wait_time = 0.1 * (2 ** attempt)  # Exponential backoff
-                        
+
                         self.logger.warning(
                             "JSONL manifest concurrency conflict, retrying",
                             extra={
@@ -210,12 +210,12 @@ class ManifestManager:
                                 "error": str(e)
                             }
                         )
-                        
+
                         time.sleep(wait_time)
                         continue
                     else:
                         raise
-                        
+
             except Exception as e:
                 if attempt == max_retries:
                     self.logger.error(
@@ -227,19 +227,19 @@ class ManifestManager:
                         }
                     )
                     raise ManifestError(f"Failed to append to JSONL manifest: {str(e)}")
-                
+
                 # Retry on any error
                 continue
-        
+
         raise ManifestConcurrencyError(f"Failed to append after {max_retries} retries")
-    
+
     def read_jsonl(
         self,
         module: str,
         name: str,
-        user_id: Optional[int] = None,
-        limit: Optional[int] = None,
-        since_timestamp: Optional[str] = None
+        user_id: int | None = None,
+        limit: int | None = None,
+        since_timestamp: str | None = None
     ) -> Iterator[ManifestEntry]:
         """
         Read entries from JSONL manifest.
@@ -254,40 +254,40 @@ class ManifestManager:
         Yields:
             ManifestEntry objects
         """
-        
+
         if not self.is_available():
             raise ManifestError("Manifest manager not available")
-        
+
         jsonl_key = self._get_jsonl_key(module, name, user_id)
-        
+
         try:
             result = self.storage.get_object(jsonl_key)
             content = result['data'].decode('utf-8')
-            
+
             count = 0
             for line in content.strip().split('\n'):
                 if not line.strip():
                     continue
-                
+
                 try:
                     entry_data = json.loads(line)
-                    
+
                     # Filter by timestamp if specified
                     if since_timestamp and entry_data.get('timestamp', '') <= since_timestamp:
                         continue
-                    
+
                     entry = ManifestEntry(
                         timestamp=entry_data.get('timestamp', ''),
                         data=entry_data.get('data', {}),
                         entry_id=entry_data.get('entry_id')
                     )
-                    
+
                     yield entry
-                    
+
                     count += 1
                     if limit and count >= limit:
                         break
-                        
+
                 except json.JSONDecodeError as e:
                     self.logger.warning(
                         "Invalid JSON line in manifest",
@@ -298,7 +298,7 @@ class ManifestManager:
                         }
                     )
                     continue
-            
+
             self.logger.debug(
                 "JSONL manifest read completed",
                 extra={
@@ -307,7 +307,7 @@ class ManifestManager:
                     "limit": limit
                 }
             )
-            
+
         except ObjectNotFoundError:
             self.logger.debug(
                 "JSONL manifest not found",
@@ -315,16 +315,16 @@ class ManifestManager:
             )
             return
             # Empty iterator
-    
+
     def write_parquet(
         self,
         module: str,
         name: str,
-        data: List[Dict[str, Any]],
-        partition: Optional[str] = None,
-        user_id: Optional[int] = None,
-        schema: Optional[Dict[str, str]] = None
-    ) -> Dict[str, Any]:
+        data: list[dict[str, Any]],
+        partition: str | None = None,
+        user_id: int | None = None,
+        schema: dict[str, str] | None = None
+    ) -> dict[str, Any]:
         """
         Write data to Parquet manifest file.
         
@@ -339,10 +339,10 @@ class ManifestManager:
         Returns:
             Dict with write result info
         """
-        
+
         if not self.is_available():
             raise ManifestError("Manifest manager not available")
-        
+
         if not PARQUET_AVAILABLE:
             # Fallback to CSV
             self.logger.warning(
@@ -350,16 +350,16 @@ class ManifestManager:
                 extra={"module": module, "name": name}
             )
             return self._write_csv_fallback(module, name, data, partition, user_id)
-        
+
         if not data:
             raise ManifestError("No data provided for Parquet write")
-        
+
         # Generate partition if not provided
         if partition is None:
-            partition = datetime.now(timezone.utc).strftime('%Y-%m')
-        
+            partition = datetime.now(UTC).strftime('%Y-%m')
+
         parquet_key = self._get_parquet_key(module, name, partition, user_id)
-        
+
         try:
             # Convert data to PyArrow table
             if schema:
@@ -376,18 +376,18 @@ class ManifestManager:
                         pa_schema.append((field_name, pa.timestamp('us')))
                     else:
                         pa_schema.append((field_name, pa.string()))  # Default to string
-                
+
                 table = pa.table(data, schema=pa.schema(pa_schema))
             else:
                 # Infer schema from data
                 table = pa.table(data)
-            
+
             # Write to Parquet bytes
             import io
             parquet_buffer = io.BytesIO()
             pq.write_table(table, parquet_buffer, compression='snappy')
             parquet_data = parquet_buffer.getvalue()
-            
+
             # Store in R2
             result = self.storage.put_object(
                 key=parquet_key,
@@ -400,10 +400,10 @@ class ManifestManager:
                     "partition": partition,
                     "user_id": str(user_id) if user_id else "",
                     "record_count": str(len(data)),
-                    "created_at": datetime.now(timezone.utc).isoformat()
+                    "created_at": datetime.now(UTC).isoformat()
                 }
             )
-            
+
             self.logger.info(
                 "Parquet manifest written",
                 extra={
@@ -414,7 +414,7 @@ class ManifestManager:
                     "etag": result["etag"]
                 }
             )
-            
+
             return {
                 "success": True,
                 "key": parquet_key,
@@ -423,7 +423,7 @@ class ManifestManager:
                 "format": "parquet",
                 "etag": result["etag"]
             }
-            
+
         except Exception as e:
             self.logger.error(
                 "Parquet manifest write failed",
@@ -434,25 +434,25 @@ class ManifestManager:
                 }
             )
             raise ManifestError(f"Failed to write Parquet manifest: {str(e)}")
-    
+
     def _write_csv_fallback(
         self,
         module: str,
         name: str,
-        data: List[Dict[str, Any]],
-        partition: Optional[str] = None,
-        user_id: Optional[int] = None
-    ) -> Dict[str, Any]:
+        data: list[dict[str, Any]],
+        partition: str | None = None,
+        user_id: int | None = None
+    ) -> dict[str, Any]:
         """Fallback to CSV when Parquet is not available."""
-        
+
         import csv
         import io
-        
+
         if partition is None:
-            partition = datetime.now(timezone.utc).strftime('%Y-%m')
-        
+            partition = datetime.now(UTC).strftime('%Y-%m')
+
         csv_key = self._get_parquet_key(module, name, partition, user_id).replace('.parquet', '.csv')
-        
+
         # Convert to CSV
         csv_buffer = io.StringIO()
         if data:
@@ -460,9 +460,9 @@ class ManifestManager:
             writer = csv.DictWriter(csv_buffer, fieldnames=fieldnames)
             writer.writeheader()
             writer.writerows(data)
-        
+
         csv_data = csv_buffer.getvalue()
-        
+
         result = self.storage.put_object(
             key=csv_key,
             data=csv_data.encode('utf-8'),
@@ -474,10 +474,10 @@ class ManifestManager:
                 "partition": partition,
                 "user_id": str(user_id) if user_id else "",
                 "record_count": str(len(data)),
-                "created_at": datetime.now(timezone.utc).isoformat()
+                "created_at": datetime.now(UTC).isoformat()
             }
         )
-        
+
         self.logger.info(
             "CSV manifest written (Parquet fallback)",
             extra={
@@ -486,7 +486,7 @@ class ManifestManager:
                 "partition": partition
             }
         )
-        
+
         return {
             "success": True,
             "key": csv_key,
@@ -495,15 +495,15 @@ class ManifestManager:
             "format": "csv",
             "etag": result["etag"]
         }
-    
+
     def read_parquet(
         self,
         module: str,
         name: str,
         partition: str,
-        user_id: Optional[int] = None,
-        columns: Optional[List[str]] = None
-    ) -> List[Dict[str, Any]]:
+        user_id: int | None = None,
+        columns: list[str] | None = None
+    ) -> list[dict[str, Any]]:
         """
         Read data from Parquet manifest file.
         
@@ -517,28 +517,28 @@ class ManifestManager:
         Returns:
             List of records
         """
-        
+
         if not self.is_available():
             raise ManifestError("Manifest manager not available")
-        
+
         parquet_key = self._get_parquet_key(module, name, partition, user_id)
-        
+
         try:
             result = self.storage.get_object(parquet_key)
-            
+
             if not PARQUET_AVAILABLE:
                 # Try CSV fallback
                 csv_key = parquet_key.replace('.parquet', '.csv')
                 return self._read_csv_fallback(csv_key, columns)
-            
+
             # Read Parquet data
             import io
             parquet_buffer = io.BytesIO(result['data'])
             table = pq.read_table(parquet_buffer, columns=columns)
-            
+
             # Convert to list of dicts
             records = table.to_pylist()
-            
+
             self.logger.debug(
                 "Parquet manifest read",
                 extra={
@@ -547,9 +547,9 @@ class ManifestManager:
                     "columns": columns
                 }
             )
-            
+
             return records
-            
+
         except ObjectNotFoundError:
             self.logger.debug(
                 "Parquet manifest not found",
@@ -565,24 +565,24 @@ class ManifestManager:
                 }
             )
             raise ManifestError(f"Failed to read Parquet manifest: {str(e)}")
-    
+
     def _read_csv_fallback(
         self,
         csv_key: str,
-        columns: Optional[List[str]] = None
-    ) -> List[Dict[str, Any]]:
+        columns: list[str] | None = None
+    ) -> list[dict[str, Any]]:
         """Fallback CSV reader."""
-        
+
         import csv
         import io
-        
+
         try:
             result = self.storage.get_object(csv_key)
             csv_content = result['data'].decode('utf-8')
-            
+
             csv_reader = csv.DictReader(io.StringIO(csv_content))
             records = []
-            
+
             for row in csv_reader:
                 if columns:
                     # Filter columns
@@ -590,18 +590,18 @@ class ManifestManager:
                     records.append(filtered_row)
                 else:
                     records.append(dict(row))
-            
+
             return records
-            
+
         except ObjectNotFoundError:
             return []
-    
+
     def list_partitions(
         self,
         module: str,
         name: str,
-        user_id: Optional[int] = None
-    ) -> List[Dict[str, Any]]:
+        user_id: int | None = None
+    ) -> list[dict[str, Any]]:
         """
         List available partitions for a manifest.
         
@@ -613,23 +613,23 @@ class ManifestManager:
         Returns:
             List of partition info
         """
-        
+
         if not self.is_available():
             raise ManifestError("Manifest manager not available")
-        
+
         # Build prefix to search for partitions
         if user_id:
             prefix = f"manifests/{module}/{name}-{user_id}-"
         else:
             prefix = f"manifests/{module}/{name}-"
-        
+
         try:
             result = self.storage.list_objects(prefix=prefix)
-            
+
             partitions = []
             for obj in result['objects']:
                 key = obj['key']
-                
+
                 # Extract partition from key
                 if key.endswith('.parquet') or key.endswith('.csv'):
                     # Extract partition from filename
@@ -648,9 +648,9 @@ class ManifestManager:
                             partition = '-'.join(parts[1:]).split('.')[0]
                         else:
                             continue
-                    
+
                     file_format = 'parquet' if key.endswith('.parquet') else 'csv'
-                    
+
                     partitions.append({
                         "partition": partition,
                         "key": key,
@@ -658,10 +658,10 @@ class ManifestManager:
                         "size": obj.get('size', 0),
                         "last_modified": obj.get('last_modified')
                     })
-            
+
             # Sort by partition name
             partitions.sort(key=lambda x: x['partition'])
-            
+
             self.logger.debug(
                 "Partitions listed",
                 extra={
@@ -671,9 +671,9 @@ class ManifestManager:
                     "count": len(partitions)
                 }
             )
-            
+
             return partitions
-            
+
         except Exception as e:
             self.logger.error(
                 "Failed to list partitions",
@@ -684,28 +684,28 @@ class ManifestManager:
                 }
             )
             raise ManifestError(f"Failed to list partitions: {str(e)}")
-    
-    def get_manifest_stats(self) -> Dict[str, Any]:
+
+    def get_manifest_stats(self) -> dict[str, Any]:
         """Get manifest usage statistics."""
-        
+
         if not self.is_available():
             return {"available": False, "error": "Manifest manager not available"}
-        
+
         try:
             result = self.storage.list_objects(prefix="manifests/", max_keys=1000)
-            
+
             stats = {
                 "total_manifests": len(result['objects']),
                 "by_format": {"jsonl": 0, "parquet": 0, "csv": 0},
                 "by_module": {},
                 "total_size": 0
             }
-            
+
             for obj in result['objects']:
                 key = obj['key']
                 size = obj.get('size', 0)
                 stats['total_size'] += size
-                
+
                 # Determine format
                 if key.endswith('.jsonl'):
                     stats['by_format']['jsonl'] += 1
@@ -713,18 +713,18 @@ class ManifestManager:
                     stats['by_format']['parquet'] += 1
                 elif key.endswith('.csv'):
                     stats['by_format']['csv'] += 1
-                
+
                 # Extract module
                 parts = key.split('/')
                 if len(parts) >= 2:
                     module = parts[1]
                     stats['by_module'][module] = stats['by_module'].get(module, 0) + 1
-            
+
             stats['parquet_available'] = PARQUET_AVAILABLE
             stats['available'] = True
-            
+
             return stats
-            
+
         except Exception as e:
             return {
                 "available": True,
@@ -733,9 +733,9 @@ class ManifestManager:
 
 # Export
 __all__ = [
-    "ManifestManager", 
-    "ManifestEntry", 
-    "ManifestError", 
+    "ManifestManager",
+    "ManifestEntry",
+    "ManifestError",
     "ManifestConcurrencyError",
     "PARQUET_AVAILABLE"
 ]

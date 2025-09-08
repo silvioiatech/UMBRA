@@ -9,26 +9,24 @@ Complete VPS management with:
 - Comprehensive audit trail to R2
 - RBAC enforcement and output redaction
 """
-import os
 import time
-import asyncio
-from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import asdict
+from typing import Any
 
+from ..core.approvals import ApprovalManager
 from ..core.logger import get_context_logger
-from ..core.approvals import ApprovalManager, ApprovalStatus
 from ..core.redact import DataRedactor
+from .concierge.ai_helpers import AIHelpers
+from .concierge.docker_ops import DockerOps
+from .concierge.exec_ops import ExecOps, ExecutionRequest
+from .concierge.files_ops import FileOps
+from .concierge.instances_ops import InstanceCreateRequest, InstancesRegistry
+from .concierge.patch_ops import PatchOps
+from .concierge.risk import RiskClassifier
+from .concierge.system_ops import SystemOps
+from .concierge.update_watcher import UpdateWatcher
+from .concierge.validators import Validators
 
-from .risk import RiskClassifier, RiskLevel
-from .system_ops import SystemOps, SystemMetrics
-from .docker_ops import DockerOps
-from .exec_ops import ExecOps, ExecutionRequest
-from .files_ops import FileOps, FileManifest
-from .patch_ops import PatchOps, PatchStatus
-from .ai_helpers import AIHelpers
-from .validators import Validators
-from .instances_ops import InstancesRegistry, InstanceCreateRequest
-from .update_watcher import UpdateWatcher
 
 class ConciergeMCP:
     """
@@ -38,18 +36,18 @@ class ConciergeMCP:
     approval flows, and AI assistance while maintaining security
     and audit compliance.
     """
-    
+
     def __init__(self, config, db_manager, ai_agent=None):
         self.config = config
         self.db = db_manager
         self.ai_agent = ai_agent
         self.logger = get_context_logger(__name__)
-        
+
         # Initialize subsystems
         self.risk_classifier = RiskClassifier()
         self.approval_manager = ApprovalManager(db_manager)
         self.redactor = DataRedactor(getattr(config, 'PRIVACY_MODE', 'strict'))
-        
+
         self.system_ops = SystemOps()
         self.docker_ops = DockerOps()
         self.exec_ops = ExecOps(db_manager, config)
@@ -59,15 +57,15 @@ class ConciergeMCP:
         self.validators = Validators(config)
         self.instances_registry = InstancesRegistry(config, db_manager)
         self.update_watcher = UpdateWatcher(config)
-        
+
         # Configuration
         self.rbac_enabled = getattr(config, 'CONCIERGE_RBAC_ENABLED', True)
         self.audit_enabled = getattr(config, 'CONCIERGE_AUDIT_ENABLED', True)
         self.output_max_bytes = getattr(config, 'OUTPUT_MAX_BYTES', 100000)
-        
+
         # Initialize audit schema
         self._init_audit_schema()
-        
+
         self.logger.info(
             "Concierge MCP v0 initialized",
             extra={
@@ -81,12 +79,12 @@ class ConciergeMCP:
                 "scheduler_running": False  # Will be started separately
             }
         )
-    
+
     def _init_audit_schema(self):
         """Initialize audit logging schema."""
         if not self.audit_enabled:
             return
-        
+
         try:
             self.db.execute("""
                 CREATE TABLE IF NOT EXISTS concierge_audit (
@@ -103,16 +101,16 @@ class ConciergeMCP:
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
-            
+
             self.db.execute("""
                 CREATE INDEX IF NOT EXISTS idx_concierge_audit_user_time 
                 ON concierge_audit (user_id, created_at)
             """)
-            
+
         except Exception as e:
             self.logger.error(f"Failed to initialize audit schema: {e}")
-    
-    async def get_capabilities(self) -> Dict[str, Any]:
+
+    async def get_capabilities(self) -> dict[str, Any]:
         """Get capabilities exposed by Concierge module."""
         return {
             # System monitoring (read-only)
@@ -123,7 +121,7 @@ class ConciergeMCP:
                 },
                 "admin_only": False
             },
-            
+
             # Docker operations
             "docker_list": {
                 "description": "List Docker containers with status",
@@ -156,7 +154,7 @@ class ConciergeMCP:
                 },
                 "admin_only": False
             },
-            
+
             # Command execution with risk classification
             "exec": {
                 "description": "Execute shell command with risk assessment",
@@ -176,7 +174,7 @@ class ConciergeMCP:
                 },
                 "admin_only": False
             },
-            
+
             # Approval management
             "approve": {
                 "description": "Approve a pending operation",
@@ -200,7 +198,7 @@ class ConciergeMCP:
                 },
                 "admin_only": True
             },
-            
+
             # File operations
             "file_export": {
                 "description": "Export file or directory with chunking",
@@ -228,7 +226,7 @@ class ConciergeMCP:
                 },
                 "admin_only": False
             },
-            
+
             # AI-assisted patching
             "patch_propose": {
                 "description": "Propose AI-assisted patch for file",
@@ -263,7 +261,7 @@ class ConciergeMCP:
                 "admin_only": True,
                 "requires_approval": True
             },
-            
+
             # AI helpers
             "analyze_logs": {
                 "description": "AI-powered log analysis and triage",
@@ -281,7 +279,7 @@ class ConciergeMCP:
                 },
                 "admin_only": False
             },
-            
+
             # Validation
             "validate_config": {
                 "description": "Validate configuration file",
@@ -291,7 +289,7 @@ class ConciergeMCP:
                 },
                 "admin_only": False
             },
-            
+
             # C3: Instance Registry Management
             "instances.create": {
                 "description": "Create new client n8n instance with automatic port allocation",
@@ -325,7 +323,7 @@ class ConciergeMCP:
                 "parameters": {},
                 "admin_only": False
             },
-            
+
             # C2: Auto-Update Watcher
             "updates.scan": {
                 "description": "Scan for available Docker image updates",
@@ -400,8 +398,8 @@ class ConciergeMCP:
                 "admin_only": True
             }
         }
-    
-    async def execute(self, action: str, params: Dict[str, Any], user_id: int, is_admin: bool = False) -> Dict[str, Any]:
+
+    async def execute(self, action: str, params: dict[str, Any], user_id: int, is_admin: bool = False) -> dict[str, Any]:
         """
         Execute Concierge action with full RBAC and audit trail.
         
@@ -415,19 +413,19 @@ class ConciergeMCP:
             Execution result with success/error information
         """
         start_time = time.time()
-        
+
         # Get capabilities to check permissions
         capabilities = await self.get_capabilities()
-        
+
         if action not in capabilities:
             return {
                 "success": False,
                 "error": f"Unknown action: {action}",
                 "available_actions": list(capabilities.keys())
             }
-        
+
         capability = capabilities[action]
-        
+
         # Check admin requirements
         if capability.get("admin_only", False) and not is_admin:
             await self._audit_action(user_id, action, params, "permission_denied", 0, "Admin access required")
@@ -435,10 +433,10 @@ class ConciergeMCP:
                 "success": False,
                 "error": "Admin access required for this action"
             }
-        
+
         # Redact parameters for audit
         redacted_params = self.redactor.redact_dict(params)
-        
+
         try:
             # Route to appropriate handler
             if action.startswith("docker_"):
@@ -466,44 +464,44 @@ class ConciergeMCP:
                     "success": False,
                     "error": f"Action handler not implemented: {action}"
                 }
-            
+
             # Audit successful execution
             duration_ms = (time.time() - start_time) * 1000
-            
+
             await self._audit_action(
-                user_id, action, redacted_params, 
+                user_id, action, redacted_params,
                 "success" if result.get("success") else "error",
-                duration_ms, 
+                duration_ms,
                 result.get("error")
             )
-            
+
             return result
-            
+
         except Exception as e:
             # Audit failed execution
             duration_ms = (time.time() - start_time) * 1000
             await self._audit_action(user_id, action, redacted_params, "exception", duration_ms, str(e))
-            
+
             self.logger.error(
                 f"Concierge action failed: {action}",
                 extra={"error": str(e), "user_id": user_id, "params": redacted_params}
             )
-            
+
             return {
                 "success": False,
                 "error": f"Action execution failed: {str(e)[:200]}"
             }
-    
-    async def _handle_system_action(self, action: str, params: Dict[str, Any], user_id: int, is_admin: bool) -> Dict[str, Any]:
+
+    async def _handle_system_action(self, action: str, params: dict[str, Any], user_id: int, is_admin: bool) -> dict[str, Any]:
         """Handle system monitoring actions."""
-        
+
         if action == "check_system":
             detailed = params.get("detailed", False)
-            
+
             try:
                 # Get system metrics
                 metrics = self.system_ops.check_system()
-                
+
                 if detailed:
                     # Include additional detailed information
                     cpu_info = self.system_ops.get_detailed_cpu_info()
@@ -511,7 +509,7 @@ class ConciergeMCP:
                     disk_info = self.system_ops.get_disk_info()
                     network_info = self.system_ops.get_network_info()
                     top_processes = self.system_ops.get_top_processes(limit=10)
-                    
+
                     result = {
                         "success": True,
                         "metrics": asdict(metrics),
@@ -532,88 +530,88 @@ class ConciergeMCP:
                         "health": self.system_ops.get_health_status(metrics),
                         "formatted": self.system_ops.format_system_summary(metrics)
                     }
-                
+
                 return result
-                
+
             except Exception as e:
                 return {
                     "success": False,
                     "error": f"System check failed: {str(e)}"
                 }
-        
+
         return {"success": False, "error": f"Unknown system action: {action}"}
-    
-    async def _handle_docker_action(self, action: str, params: Dict[str, Any], user_id: int, is_admin: bool) -> Dict[str, Any]:
+
+    async def _handle_docker_action(self, action: str, params: dict[str, Any], user_id: int, is_admin: bool) -> dict[str, Any]:
         """Handle Docker-related actions."""
-        
+
         if not self.docker_ops.docker_available:
             return {
                 "success": False,
                 "error": "Docker not available on this system"
             }
-        
+
         if action == "docker_list":
             all_containers = params.get("all", True)
             containers = self.docker_ops.list_containers(all_containers)
-            
+
             return {
                 "success": True,
                 "containers": [asdict(c) for c in containers],
                 "count": len(containers),
                 "formatted": self.docker_ops.format_container_list(containers)
             }
-        
+
         elif action == "docker_logs":
             container = params.get("container")
             lines = params.get("lines", 100)
             since = params.get("since")
-            
+
             if not container:
                 return {"success": False, "error": "Container name/ID required"}
-            
+
             success, logs = self.docker_ops.tail_logs(container, lines, since)
-            
+
             return {
                 "success": success,
                 "logs": logs if success else None,
                 "error": logs if not success else None
             }
-        
+
         elif action == "docker_restart":
             container = params.get("container")
-            
+
             if not container:
                 return {"success": False, "error": "Container name/ID required"}
-            
+
             success, message = self.docker_ops.restart_container(container)
-            
+
             return {
                 "success": success,
                 "message": message,
                 "error": message if not success else None
             }
-        
+
         elif action == "docker_stats":
             container = params.get("container")
             stats = self.docker_ops.get_container_stats(container)
-            
+
             return {
                 "success": True,
                 "stats": [asdict(s) for s in stats],
                 "formatted": self.docker_ops.format_container_stats(stats)
             }
-        
+
         return {"success": False, "error": f"Unknown Docker action: {action}"}
-    
-    async def _handle_exec_action(self, action: str, params: Dict[str, Any], user_id: int, is_admin: bool) -> Dict[str, Any]:
+
+    async def _handle_exec_action(self, action: str, params: dict[str, Any], user_id: int, is_admin: bool) -> dict[str, Any]:
         """Handle command execution actions."""
-        
+
         if action == "exec":
             command = params.get("command", "").strip()
-            
+
             if not command:
                 return {"success": False, "error": "Command required"}
-            
+
             # Create execution request
             request = ExecutionRequest(
                 command=command,
@@ -622,10 +620,10 @@ class ConciergeMCP:
                 timeout=params.get("timeout", 30),
                 approval_token=params.get("approval_token")
             )
-            
+
             # Execute with risk assessment and approval flow
             result = self.exec_ops.execute_command(request)
-            
+
             # Format result for response
             response = {
                 "success": result.success,
@@ -635,7 +633,7 @@ class ConciergeMCP:
                 "execution_time": result.execution_time,
                 "formatted": self.exec_ops.format_execution_result(result)
             }
-            
+
             if result.success:
                 response["output"] = {
                     "stdout": result.stdout,
@@ -646,28 +644,28 @@ class ConciergeMCP:
                 if result.approval_token:
                     response["approval_token"] = result.approval_token
                     response["approval_required"] = True
-            
+
             return response
-        
+
         elif action == "exec_macro":
             macro = params.get("macro", "").strip()
-            
+
             if not macro:
                 return {"success": False, "error": "Macro name required"}
-            
+
             # Get available macros
             macros = self.exec_ops.get_safe_macros()
-            
+
             if macro not in macros:
                 return {
                     "success": False,
                     "error": f"Unknown macro: {macro}",
                     "available_macros": list(macros.keys())
                 }
-            
+
             # Execute macro
             result = self.exec_ops.execute_macro(macro, user_id)
-            
+
             return {
                 "success": result.success,
                 "macro": macro,
@@ -679,24 +677,24 @@ class ConciergeMCP:
                 "error": result.stderr if not result.success else None,
                 "formatted": self.exec_ops.format_execution_result(result)
             }
-        
+
         return {"success": False, "error": f"Unknown exec action: {action}"}
-    
-    async def _handle_approval_action(self, action: str, params: Dict[str, Any], user_id: int, is_admin: bool) -> Dict[str, Any]:
+
+    async def _handle_approval_action(self, action: str, params: dict[str, Any], user_id: int, is_admin: bool) -> dict[str, Any]:
         """Handle approval management actions."""
-        
+
         if action == "approve":
             token = params.get("token", "").strip()
             confirm_token = params.get("confirm_token", "").strip()
-            
+
             if not token:
                 return {"success": False, "error": "Approval token required"}
-            
+
             # Get approval request
             approval_request = self.approval_manager.get_approval_request(token)
             if not approval_request:
                 return {"success": False, "error": "Invalid approval token"}
-            
+
             # Handle double confirmation if required
             if approval_request.requires_double_confirm:
                 if not confirm_token:
@@ -730,23 +728,23 @@ class ConciergeMCP:
                     "success": success,
                     "message": "Request approved" if success else "Failed to approve request"
                 }
-        
+
         elif action == "deny":
             token = params.get("token", "").strip()
-            
+
             if not token:
                 return {"success": False, "error": "Approval token required"}
-            
+
             success = self.approval_manager.deny_request(token, user_id)
             return {
                 "success": success,
                 "message": "Request denied" if success else "Failed to deny request"
             }
-        
+
         elif action == "list_approvals":
             filter_user_id = params.get("user_id")
             pending_approvals = self.approval_manager.get_pending_approvals(filter_user_id)
-            
+
             return {
                 "success": True,
                 "approvals": [
@@ -764,21 +762,21 @@ class ConciergeMCP:
                 ],
                 "count": len(pending_approvals)
             }
-        
+
         return {"success": False, "error": f"Unknown approval action: {action}"}
-    
-    async def _handle_file_action(self, action: str, params: Dict[str, Any], user_id: int, is_admin: bool) -> Dict[str, Any]:
+
+    async def _handle_file_action(self, action: str, params: dict[str, Any], user_id: int, is_admin: bool) -> dict[str, Any]:
         """Handle file operation actions."""
-        
+
         if action == "file_export":
             path = params.get("path", "").strip()
             compress = params.get("compress", True)
-            
+
             if not path:
                 return {"success": False, "error": "File path required"}
-            
+
             success, manifest, error = self.file_ops.file_send(path, compress=compress)
-            
+
             if success:
                 return {
                     "success": True,
@@ -789,15 +787,15 @@ class ConciergeMCP:
                 }
             else:
                 return {"success": False, "error": error}
-        
+
         elif action == "file_import":
             operation_id = params.get("operation_id", "").strip()
             destination = params.get("destination", "").strip()
             overwrite = params.get("overwrite", False)
-            
+
             if not operation_id or not destination:
                 return {"success": False, "error": "Operation ID and destination required"}
-            
+
             # Get manifest for operation
             manifests = self.file_ops.list_pending_operations()
             manifest = None
@@ -805,12 +803,12 @@ class ConciergeMCP:
                 if m.operation_id == operation_id:
                     manifest = m
                     break
-            
+
             if not manifest:
                 return {"success": False, "error": f"Operation not found: {operation_id}"}
-            
+
             success, result, error = self.file_ops.file_receive(manifest, destination, overwrite)
-            
+
             if success:
                 return {
                     "success": True,
@@ -819,36 +817,36 @@ class ConciergeMCP:
                 }
             else:
                 return {"success": False, "error": error}
-        
+
         elif action == "file_info":
             path = params.get("path", "").strip()
-            
+
             if not path:
                 return {"success": False, "error": "File path required"}
-            
+
             info = self.file_ops.get_file_info(path)
-            
+
             if info:
                 return {"success": True, "info": info}
             else:
                 return {"success": False, "error": "File not found or access denied"}
-        
+
         return {"success": False, "error": f"Unknown file action: {action}"}
-    
-    async def _handle_patch_action(self, action: str, params: Dict[str, Any], user_id: int, is_admin: bool) -> Dict[str, Any]:
+
+    async def _handle_patch_action(self, action: str, params: dict[str, Any], user_id: int, is_admin: bool) -> dict[str, Any]:
         """Handle patch operation actions."""
-        
+
         if action == "patch_propose":
             target = params.get("target", "").strip()
             context = params.get("context", "").strip()
-            
+
             if not target or not context:
                 return {"success": False, "error": "Target file and context required"}
-            
+
             success, patch_op, error = await self.patch_ops.propose_patch(
                 target, context, user_id, self.ai_agent
             )
-            
+
             if success:
                 return {
                     "success": True,
@@ -859,32 +857,32 @@ class ConciergeMCP:
                 }
             else:
                 return {"success": False, "error": error}
-        
+
         elif action == "patch_preview":
             patch_id = params.get("patch_id", "").strip()
-            
+
             if not patch_id:
                 return {"success": False, "error": "Patch ID required"}
-            
+
             success, preview, error = self.patch_ops.patch_preview(patch_id)
-            
+
             if success:
                 return {"success": True, "preview": preview}
             else:
                 return {"success": False, "error": error}
-        
+
         elif action == "patch_apply":
             patch_id = params.get("patch_id", "").strip()
             backup = params.get("backup", True)
             validate = params.get("validate", True)
-            
+
             if not patch_id:
                 return {"success": False, "error": "Patch ID required"}
-            
+
             success, patch_op, error = self.patch_ops.patch_apply(
                 patch_id, atomic=True, backup=backup, validate=validate
             )
-            
+
             if success:
                 return {
                     "success": True,
@@ -893,41 +891,41 @@ class ConciergeMCP:
                 }
             else:
                 return {"success": False, "error": error}
-        
+
         elif action == "patch_rollback":
             patch_id = params.get("patch_id", "").strip()
-            
+
             if not patch_id:
                 return {"success": False, "error": "Patch ID required"}
-            
+
             success, error = self.patch_ops.patch_rollback(patch_id)
-            
+
             return {
                 "success": success,
                 "message": "Patch rolled back successfully" if success else error
             }
-        
+
         return {"success": False, "error": f"Unknown patch action: {action}"}
-    
-    async def _handle_ai_action(self, action: str, params: Dict[str, Any], user_id: int, is_admin: bool) -> Dict[str, Any]:
+
+    async def _handle_ai_action(self, action: str, params: dict[str, Any], user_id: int, is_admin: bool) -> dict[str, Any]:
         """Handle AI assistant actions."""
-        
+
         if not self.ai_helpers.ai_enabled:
             return {
                 "success": False,
                 "error": "AI assistance not available"
             }
-        
+
         if action == "analyze_logs":
             logs = params.get("logs", "").strip()
             context = params.get("context")
-            
+
             if not logs:
                 return {"success": False, "error": "Log content required"}
-            
+
             try:
                 analysis = await self.ai_helpers.analyze_logs(logs, context)
-                
+
                 return {
                     "success": True,
                     "analysis": asdict(analysis),
@@ -937,17 +935,17 @@ class ConciergeMCP:
                 }
             except Exception as e:
                 return {"success": False, "error": f"Log analysis failed: {str(e)}"}
-        
+
         elif action == "explain_stacktrace":
             stacktrace = params.get("stacktrace", "").strip()
             context = params.get("context")
-            
+
             if not stacktrace:
                 return {"success": False, "error": "Stacktrace content required"}
-            
+
             try:
                 analysis = await self.ai_helpers.explain_stacktrace(stacktrace, context)
-                
+
                 return {
                     "success": True,
                     "analysis": asdict(analysis),
@@ -957,24 +955,24 @@ class ConciergeMCP:
                 }
             except Exception as e:
                 return {"success": False, "error": f"Stacktrace analysis failed: {str(e)}"}
-        
+
         return {"success": False, "error": f"Unknown AI action: {action}"}
-    
-    async def _handle_validation_action(self, action: str, params: Dict[str, Any], user_id: int, is_admin: bool) -> Dict[str, Any]:
+
+    async def _handle_validation_action(self, action: str, params: dict[str, Any], user_id: int, is_admin: bool) -> dict[str, Any]:
         """Handle validation actions."""
-        
+
         if action == "validate_config":
             file_path = params.get("file_path", "").strip()
             validators = params.get("validators")
-            
+
             if not file_path:
                 return {"success": False, "error": "File path required"}
-            
+
             try:
                 results = self.validators.validate_file(file_path, validators)
-                
+
                 success = all(result.success for result in results if result.validator_name != "file_existence")
-                
+
                 return {
                     "success": success,
                     "validation_results": [asdict(result) for result in results],
@@ -982,21 +980,21 @@ class ConciergeMCP:
                 }
             except Exception as e:
                 return {"success": False, "error": f"Validation failed: {str(e)}"}
-        
+
         return {"success": False, "error": f"Unknown validation action: {action}"}
-    
-    async def _handle_instances_action(self, action: str, params: Dict[str, Any], user_id: int, is_admin: bool) -> Dict[str, Any]:
+
+    async def _handle_instances_action(self, action: str, params: dict[str, Any], user_id: int, is_admin: bool) -> dict[str, Any]:
         """Handle instance registry actions."""
-        
+
         if action == "instances.create":
             client = params.get("client", "").strip()
             name = params.get("name")
             port = params.get("port")
             env_overrides = params.get("env_overrides")
-            
+
             if not client:
                 return {"success": False, "error": "Client ID required"}
-            
+
             # Create instance request
             request = InstanceCreateRequest(
                 client=client,
@@ -1004,10 +1002,10 @@ class ConciergeMCP:
                 port=port,
                 env_overrides=env_overrides
             )
-            
+
             # Create instance
             result = await self.instances_registry.create_instance(request, user_id)
-            
+
             if result.success:
                 return {
                     "success": True,
@@ -1028,13 +1026,13 @@ class ConciergeMCP:
                     "error": result.error,
                     "audit_id": result.audit_id
                 }
-        
+
         elif action == "instances.list":
             client_filter = params.get("client")
-            
+
             try:
                 instances = self.instances_registry.list_instances(client_filter)
-                
+
                 # Format instances for response
                 instances_data = []
                 for instance in instances:
@@ -1049,32 +1047,32 @@ class ConciergeMCP:
                         "created_at": instance.created_at,
                         "updated_at": instance.updated_at
                     })
-                
+
                 return {
                     "success": True,
                     "instances": instances_data,
                     "count": len(instances_data),
                     "formatted": self.instances_registry.format_instances_summary(instances)
                 }
-                
+
             except Exception as e:
                 return {"success": False, "error": f"Failed to list instances: {str(e)}"}
-        
+
         elif action == "instances.delete":
             client = params.get("client", "").strip()
             mode = params.get("mode", "keep").strip().lower()
-            
+
             if not client:
                 return {"success": False, "error": "Client ID required"}
-            
+
             if mode not in ["keep", "wipe"]:
                 return {"success": False, "error": "Mode must be 'keep' or 'wipe'"}
-            
+
             try:
                 success, audit_id, error = await self.instances_registry.delete_instance(
                     client, mode, user_id
                 )
-                
+
                 if success:
                     return {
                         "success": True,
@@ -1087,20 +1085,20 @@ class ConciergeMCP:
                         "error": error,
                         "audit_id": audit_id
                     }
-                    
+
             except Exception as e:
                 return {"success": False, "error": f"Failed to delete instance: {str(e)}"}
-        
+
         elif action == "instances.stats":
             try:
                 port_stats = self.instances_registry.get_port_usage_stats()
                 instances = self.instances_registry.list_instances()
-                
+
                 # Count by status
                 status_counts = {}
                 for instance in instances:
                     status_counts[instance.status] = status_counts.get(instance.status, 0) + 1
-                
+
                 return {
                     "success": True,
                     "port_usage": port_stats,
@@ -1110,18 +1108,18 @@ class ConciergeMCP:
                     },
                     "health": self.instances_registry.health_check()
                 }
-                
+
             except Exception as e:
                 return {"success": False, "error": f"Failed to get instance stats: {str(e)}"}
-        
+
         return {"success": False, "error": f"Unknown instances action: {action}"}
-    
-    async def _handle_updates_action(self, action: str, params: Dict[str, Any], user_id: int, is_admin: bool) -> Dict[str, Any]:
+
+    async def _handle_updates_action(self, action: str, params: dict[str, Any], user_id: int, is_admin: bool) -> dict[str, Any]:
         """Handle auto-update watcher actions."""
-        
+
         if action == "updates.scan":
             force = params.get("force", False)
-            
+
             try:
                 # Skip scan if recent one exists and not forced
                 if not force and self.update_watcher.last_scan:
@@ -1133,10 +1131,10 @@ class ConciergeMCP:
                             "scan_results": self.update_watcher.get_scan_results(),
                             "last_scan": self.update_watcher.last_scan.isoformat()
                         }
-                
+
                 # Perform scan
                 scan_results = await self.update_watcher.scan()
-                
+
                 # Format results
                 formatted_results = {}
                 for service_name, result in scan_results.items():
@@ -1147,9 +1145,9 @@ class ConciergeMCP:
                         "risk_level": result.risk_level.value,
                         "release_notes": result.release_notes
                     }
-                
+
                 updates_available = sum(1 for r in scan_results.values() if r.needs_update)
-                
+
                 return {
                     "success": True,
                     "scan_results": formatted_results,
@@ -1159,17 +1157,17 @@ class ConciergeMCP:
                         "last_scan": self.update_watcher.last_scan.isoformat()
                     }
                 }
-                
+
             except Exception as e:
                 return {"success": False, "error": f"Scan failed: {str(e)}"}
-        
+
         elif action == "updates.plan_main":
             target_tag = params.get("target_tag")
             target_digest = params.get("target_digest")
-            
+
             try:
                 plan = await self.update_watcher.plan_main_blue_green(target_tag, target_digest)
-                
+
                 return {
                     "success": True,
                     "plan": {
@@ -1188,20 +1186,20 @@ class ConciergeMCP:
                         "timeout": step["timeout"]
                     } for step in plan.steps[:5]]  # Show first 5 steps
                 }
-                
+
             except Exception as e:
                 return {"success": False, "error": f"Plan creation failed: {str(e)}"}
-        
+
         elif action == "updates.plan_client":
             client_name = params.get("client_name", "").strip()
             when = params.get("when", "window")
-            
+
             if not client_name:
                 return {"success": False, "error": "Client name required"}
-            
+
             try:
                 plan = await self.update_watcher.plan_client(client_name, when)
-                
+
                 return {
                     "success": True,
                     "plan": {
@@ -1215,28 +1213,28 @@ class ConciergeMCP:
                         "scheduled_for": when
                     }
                 }
-                
+
             except Exception as e:
                 return {"success": False, "error": f"Client plan creation failed: {str(e)}"}
-        
+
         elif action == "updates.apply":
             plan_id = params.get("plan_id", "").strip()
             confirmed = params.get("confirmed", False)
             double_confirmed = params.get("double_confirmed", False)
-            
+
             if not plan_id:
                 return {"success": False, "error": "Plan ID required"}
-            
+
             if not confirmed:
                 return {
                     "success": False,
                     "error": "Plan execution requires confirmation",
                     "confirmation_required": True
                 }
-            
+
             try:
                 result = await self.update_watcher.apply(plan_id, confirmed, double_confirmed)
-                
+
                 return {
                     "success": True,
                     "execution_result": {
@@ -1247,72 +1245,72 @@ class ConciergeMCP:
                     },
                     "message": "Update applied successfully" if result.get("success") else "Update failed"
                 }
-                
+
             except Exception as e:
                 return {"success": False, "error": f"Update application failed: {str(e)}"}
-        
+
         elif action == "updates.rollback":
             service_name = params.get("service_name", "").strip()
-            
+
             if not service_name:
                 return {"success": False, "error": "Service name required"}
-            
+
             try:
                 result = await self.update_watcher.rollback(service_name)
-                
+
                 return {
                     "success": True,
                     "rollback_result": result,
                     "message": f"Service {service_name} rolled back successfully"
                 }
-                
+
             except Exception as e:
                 return {"success": False, "error": f"Rollback failed: {str(e)}"}
-        
+
         elif action == "updates.freeze":
             service_name = params.get("service_name", "").strip()
             frozen = params.get("frozen", True)
-            
+
             if not service_name:
                 return {"success": False, "error": "Service name required"}
-            
+
             try:
                 result = await self.update_watcher.freeze(service_name, frozen)
-                
+
                 return {
                     "success": True,
                     "result": result,
                     "message": f"Service {service_name} {'frozen' if frozen else 'unfrozen'}"
                 }
-                
+
             except Exception as e:
                 return {"success": False, "error": f"Freeze operation failed: {str(e)}"}
-        
+
         elif action == "updates.window":
             service_name = params.get("service_name", "").strip()
             window = params.get("window", "").strip()
-            
+
             if not service_name or not window:
                 return {"success": False, "error": "Service name and window required"}
-            
+
             try:
                 result = await self.update_watcher.set_maintenance_window(service_name, window)
-                
+
                 return {
                     "success": True,
                     "result": result,
                     "message": f"Maintenance window set for {service_name}: {window}"
                 }
-                
+
             except Exception as e:
                 return {"success": False, "error": f"Window setting failed: {str(e)}"}
-        
+
         elif action == "updates.status":
             try:
                 status = self.update_watcher.get_status()
                 scan_results = self.update_watcher.get_scan_results()
                 active_plans = self.update_watcher.get_active_plans()
-                
+
                 # Format scan results summary
                 scan_summary = {}
                 for service_name, result in scan_results.items():
@@ -1320,7 +1318,7 @@ class ConciergeMCP:
                         "needs_update": result.needs_update,
                         "risk_level": result.risk_level.value
                     }
-                
+
                 return {
                     "success": True,
                     "status": status,
@@ -1334,62 +1332,62 @@ class ConciergeMCP:
                         } for plan in active_plans.values()]
                     }
                 }
-                
+
             except Exception as e:
                 return {"success": False, "error": f"Status retrieval failed: {str(e)}"}
-        
+
         elif action == "updates.start_scheduler":
             try:
                 await self.update_watcher.start_scheduler()
-                
+
                 return {
                     "success": True,
                     "message": "Update scheduler started",
                     "next_scan": self.update_watcher._get_next_scan_time().isoformat()
                 }
-                
+
             except Exception as e:
                 return {"success": False, "error": f"Scheduler start failed: {str(e)}"}
-        
+
         elif action == "updates.stop_scheduler":
             try:
                 await self.update_watcher.stop_scheduler()
-                
+
                 return {
                     "success": True,
                     "message": "Update scheduler stopped"
                 }
-                
+
             except Exception as e:
                 return {"success": False, "error": f"Scheduler stop failed: {str(e)}"}
-        
+
         return {"success": False, "error": f"Unknown updates action: {action}"}
-    
+
     async def _audit_action(
-        self, 
-        user_id: int, 
-        action: str, 
-        params: Dict[str, Any], 
+        self,
+        user_id: int,
+        action: str,
+        params: dict[str, Any],
         status: str,
-        duration_ms: float, 
-        error_message: Optional[str] = None
+        duration_ms: float,
+        error_message: str | None = None
     ):
         """Audit action execution."""
         if not self.audit_enabled:
             return
-        
+
         try:
             # Generate result hash for integrity
             import hashlib
             result_data = f"{status}:{duration_ms}:{len(str(error_message or ''))}"
             result_hash = hashlib.sha256(result_data.encode()).hexdigest()[:16]
-            
+
             # Get risk level if it was classified
             risk_level = None
             if action == "exec" and "command" in params:
                 risk_level, _, _ = self.risk_classifier.classify_command(params["command"])
                 risk_level = risk_level.value
-            
+
             self.db.execute("""
                 INSERT INTO concierge_audit (
                     user_id, action, params_redacted, risk_level, status,
@@ -1405,15 +1403,15 @@ class ConciergeMCP:
                 result_hash,
                 error_message[:500] if error_message else None  # Truncate long errors
             ))
-            
+
         except Exception as e:
             self.logger.error(f"Audit logging failed: {e}")
-    
-    async def health_check(self) -> Dict[str, Any]:
+
+    async def health_check(self) -> dict[str, Any]:
         """Perform comprehensive health check of Concierge subsystems."""
         try:
             checks = {}
-            
+
             # System operations
             try:
                 metrics = self.system_ops.check_system()
@@ -1423,26 +1421,26 @@ class ConciergeMCP:
                 }
             except Exception as e:
                 checks["system_ops"] = {"status": "error", "details": str(e)}
-            
+
             # Docker operations
             checks["docker_ops"] = {
                 "status": "ok" if self.docker_ops.docker_available else "warning",
                 "details": "Docker available" if self.docker_ops.docker_available else "Docker not available"
             }
-            
+
             # Database connectivity
             try:
                 self.db.query_one("SELECT 1")
                 checks["database"] = {"status": "ok", "details": "Database accessible"}
             except Exception as e:
                 checks["database"] = {"status": "error", "details": str(e)}
-            
+
             # AI assistance
             checks["ai_helpers"] = {
                 "status": "ok" if self.ai_helpers.ai_enabled else "warning",
                 "details": "AI assistance available" if self.ai_helpers.ai_enabled else "AI not configured"
             }
-            
+
             # Update watcher
             try:
                 update_status = self.update_watcher.get_status()
@@ -1452,7 +1450,7 @@ class ConciergeMCP:
                 }
             except Exception as e:
                 checks["update_watcher"] = {"status": "error", "details": str(e)}
-            
+
             # Approval manager
             try:
                 stats = self.approval_manager.get_approval_stats()
@@ -1462,17 +1460,17 @@ class ConciergeMCP:
                 }
             except Exception as e:
                 checks["approval_manager"] = {"status": "error", "details": str(e)}
-            
+
             # Overall status
             error_count = len([c for c in checks.values() if c["status"] == "error"])
-            
+
             if error_count == 0:
                 overall_status = "healthy"
             elif error_count <= 2:
                 overall_status = "degraded"
             else:
                 overall_status = "unhealthy"
-            
+
             return {
                 "status": overall_status,
                 "subsystems": checks,
@@ -1485,33 +1483,33 @@ class ConciergeMCP:
                     "scheduler_running": self.update_watcher.scheduler_task is not None and not self.update_watcher.scheduler_task.done() if hasattr(self.update_watcher, 'scheduler_task') else False
                 }
             }
-            
+
         except Exception as e:
             return {
                 "status": "unhealthy",
                 "error": str(e)
             }
-    
+
     async def cleanup(self):
         """Cleanup temporary files and expired approvals."""
         try:
             # Stop update scheduler if running
             if hasattr(self.update_watcher, 'scheduler_task') and self.update_watcher.scheduler_task:
                 await self.update_watcher.stop_scheduler()
-            
+
             # Cleanup expired approvals
             cleaned_approvals = self.approval_manager.cleanup_expired()
-            
+
             # Cleanup temporary files
             self.file_ops.cleanup_old_operations()
             self.patch_ops.cleanup_old_backups()
             self.validators.cleanup_temp_files()
-            
+
             self.logger.info(
                 "Concierge cleanup completed",
                 extra={"cleaned_approvals": cleaned_approvals, "scheduler_stopped": True}
             )
-            
+
         except Exception as e:
             self.logger.error(f"Cleanup failed: {e}")
 

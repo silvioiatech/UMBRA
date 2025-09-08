@@ -3,16 +3,15 @@ Enhanced Finance MCP - Complete Personal Financial Management System
 Integrates all advanced features including multi-account management, investment tracking,
 financial goals, analytics, and comprehensive reporting capabilities.
 """
+import json
 import os
 import re
-import json
-import math
 import statistics
+from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Tuple
-from decimal import Decimal, ROUND_HALF_UP
-from dataclasses import dataclass, asdict
+from decimal import Decimal
 from enum import Enum
+from typing import Any
 
 from ..core.envelope import InternalEnvelope
 from ..core.module_base import ModuleBase
@@ -59,7 +58,7 @@ class FinanceMCP(ModuleBase):
         super().__init__("finance")
         self.config = config
         self.db = db_manager
-        
+
         # Configuration from environment variables
         self.currency_symbol = os.getenv('FINANCE_CURRENCY_SYMBOL', '$')
         self.default_currency = os.getenv('FINANCE_DEFAULT_CURRENCY', 'USD')
@@ -69,27 +68,27 @@ class FinanceMCP(ModuleBase):
         self.enable_analytics = os.getenv('FINANCE_ENABLE_ANALYTICS', 'true').lower() == 'true'
         self.budget_alert_threshold = float(os.getenv('FINANCE_BUDGET_ALERT_THRESHOLD', '90'))
         self.low_balance_threshold = float(os.getenv('FINANCE_LOW_BALANCE_THRESHOLD', '100'))
-        
+
         # Investment settings
         self.stock_api_key = os.getenv('FINANCE_STOCK_API_KEY')
         self.enable_real_time_quotes = os.getenv('FINANCE_ENABLE_REAL_TIME_QUOTES', 'false').lower() == 'true'
-        
+
         # Advanced features flags
         self.enable_tax_tracking = os.getenv('FINANCE_ENABLE_TAX_TRACKING', 'true').lower() == 'true'
         self.enable_retirement_planning = os.getenv('FINANCE_ENABLE_RETIREMENT_PLANNING', 'true').lower() == 'true'
         self.enable_debt_planning = os.getenv('FINANCE_ENABLE_DEBT_PLANNING', 'true').lower() == 'true'
         self.enable_multi_currency = os.getenv('FINANCE_ENABLE_MULTI_CURRENCY', 'false').lower() == 'true'
-        
+
         # Alert settings
         self.enable_email_alerts = os.getenv('FINANCE_ENABLE_EMAIL_ALERTS', 'false').lower() == 'true'
         self.alert_email = os.getenv('FINANCE_ALERT_EMAIL')
-        
+
         # Initialize database
         self._init_enhanced_database()
-        
+
         # Load categorization patterns
         self.categorization_patterns = self._load_categorization_patterns()
-        
+
         # Initialize production extensions
         self.extensions = FinanceExtensions(config, db_manager, self.logger)
 
@@ -111,7 +110,7 @@ class FinanceMCP(ModuleBase):
 
             # Create default categories and goals
             await self._setup_default_data()
-            
+
             self.logger.info("Enhanced Finance module initialized successfully")
             return True
         except Exception as e:
@@ -128,14 +127,14 @@ class FinanceMCP(ModuleBase):
             "set budget": self.set_budget,
             "expense summary": self.get_expense_summary,
             "monthly report": self.monthly_financial_report,
-            
+
             # Account Management
             "create account": self.create_account,
             "list accounts": self.list_accounts,
             "account balance": self.get_account_balance,
             "transfer funds": self.transfer_funds,
             "account summary": self.get_account_summary,
-            
+
             # Enhanced Transaction Management
             "add income": self.add_income,
             "add expense": self.add_expense,
@@ -143,14 +142,14 @@ class FinanceMCP(ModuleBase):
             "transaction history": self.get_transaction_history,
             "recent transactions": self.get_recent_transactions,
             "categorize transaction": self.categorize_transaction,
-            
+
             # Budget & Goals
             "create goal": self.create_financial_goal,
             "goal progress": self.get_goal_progress,
             "update goal": self.update_goal_progress,
             "list goals": self.list_goals,
             "delete goal": self.delete_goal,
-            
+
             # Analytics & Reports
             "financial summary": self.get_financial_summary,
             "executive summary": self.generate_executive_summary,
@@ -161,30 +160,30 @@ class FinanceMCP(ModuleBase):
             "health score": self.calculate_financial_health_score,
             "spending forecast": self.generate_spending_forecast,
             "wealth projection": self.generate_wealth_projection,
-            
+
             # Receipt OCR & Document Management
             "process receipt": self.process_receipt,
             "list receipts": self.list_receipts,
             "get receipt": self.get_receipt_details,
             "link receipt": self.link_receipt_to_transaction,
-            
+
             # Investment Management (Real APIs)
             "get stock quote": self.get_stock_quote,
             "update stock prices": self.update_investment_prices,
             "investment analysis": self.analyze_investments,
-            
+
             # Tax Planning & Compliance
             "setup tax categories": self.setup_tax_categories,
             "tax deductions": self.calculate_tax_deductions,
             "export tax data": self.export_tax_data,
             "tax planning": self.tax_planning_advice,
-            
+
             # Data Management (Production-Ready)
             "import bank csv": self.import_bank_data,
             "export data": self.export_financial_data,
             "backup data": self.backup_financial_data,
         }
-        
+
         # Add investment handlers if enabled
         if self.enable_investments:
             handlers.update({
@@ -196,17 +195,17 @@ class FinanceMCP(ModuleBase):
                 "portfolio summary": self.get_portfolio_summary,
                 "investment performance": self.get_investment_performance,
             })
-        
+
         # Add advanced planning handlers if enabled
         if self.enable_retirement_planning:
             handlers["retirement plan"] = self.calculate_retirement_needs
-        
+
         if self.enable_debt_planning:
             handlers["debt payoff plan"] = self.create_debt_payoff_plan
-        
+
         if self.enable_tax_tracking:
             handlers["tax summary"] = self.generate_tax_summary
-        
+
         return handlers
 
     async def process_envelope(self, envelope: InternalEnvelope) -> str | None:
@@ -253,7 +252,7 @@ class FinanceMCP(ModuleBase):
             accounts_count = self.db.query_one("SELECT COUNT(*) as count FROM accounts")
             transactions_count = self.db.query_one("SELECT COUNT(*) as count FROM transactions")
             budgets_count = self.db.query_one("SELECT COUNT(*) as count FROM budgets")
-            
+
             health_data = {
                 "status": "healthy",
                 "details": {
@@ -263,12 +262,12 @@ class FinanceMCP(ModuleBase):
                     "database_accessible": True
                 }
             }
-            
+
             # Add goal and investment counts if enabled
             if self.enable_goals:
                 goals_count = self.db.query_one("SELECT COUNT(*) as count FROM financial_goals")
                 health_data["details"]["goals"] = goals_count["count"] if goals_count else 0
-            
+
             if self.enable_investments:
                 investments_count = self.db.query_one("SELECT COUNT(*) as count FROM investments")
                 health_data["details"]["investments"] = investments_count["count"] if investments_count else 0
@@ -281,7 +280,7 @@ class FinanceMCP(ModuleBase):
             health_data["details"]["recent_activity"] = recent_activity["count"] if recent_activity else 0
 
             return health_data
-            
+
         except Exception as e:
             return {
                 "status": "unhealthy",
@@ -419,15 +418,15 @@ class FinanceMCP(ModuleBase):
                 SELECT name FROM sqlite_master 
                 WHERE type='table' AND name='expenses'
             """)
-            
+
             if expenses_table:
                 # Create default account for migration
                 default_account_id = await self._ensure_default_account()
-                
+
                 # Migrate expenses to transactions
                 old_expenses = self.db.query_all("SELECT * FROM expenses")
                 migrated_count = 0
-                
+
                 for expense in old_expenses:
                     try:
                         self.db.execute("""
@@ -437,7 +436,7 @@ class FinanceMCP(ModuleBase):
                             )
                             VALUES (?, ?, 'expense', ?, ?, ?, ?, ?)
                         """, (
-                            expense.get('user_id', 0), 
+                            expense.get('user_id', 0),
                             default_account_id,
                             expense['amount'],
                             expense['description'],
@@ -448,25 +447,25 @@ class FinanceMCP(ModuleBase):
                         migrated_count += 1
                     except Exception as e:
                         self.logger.warning(f"Failed to migrate expense {expense['id']}: {e}")
-                
+
                 # Update account balance
                 total_migrated = self.db.query_one("""
                     SELECT SUM(amount) as total FROM transactions 
                     WHERE account_id = ? AND transaction_type = 'expense'
                 """, (default_account_id,))
-                
+
                 if total_migrated and total_migrated['total']:
                     self.db.execute("""
                         UPDATE accounts SET balance = balance - ? WHERE id = ?
                     """, (total_migrated['total'], default_account_id))
-                
+
                 if migrated_count > 0:
                     self.logger.info(f"Migrated {migrated_count} legacy expenses to enhanced system")
-                    
+
                     # Rename old table as backup
                     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
                     self.db.execute(f"ALTER TABLE expenses RENAME TO expenses_backup_{timestamp}")
-                
+
         except Exception as e:
             self.logger.error(f"Legacy data migration failed: {e}")
 
@@ -475,16 +474,16 @@ class FinanceMCP(ModuleBase):
         existing_account = self.db.query_one("""
             SELECT id FROM accounts WHERE name = 'Main Account (Migrated)'
         """)
-        
+
         if existing_account:
             return existing_account['id']
-        
+
         # Create default account
         account_id = self.db.execute("""
             INSERT INTO accounts (user_id, name, account_type, balance, created_at)
             VALUES (0, 'Main Account (Migrated)', 'checking', 0.00, CURRENT_TIMESTAMP)
         """)
-        
+
         return account_id
 
     async def _create_default_accounts(self):
@@ -494,7 +493,7 @@ class FinanceMCP(ModuleBase):
             ("Savings Account", "savings", 0.0),
             ("Cash", "cash", 0.0),
         ]
-        
+
         for name, account_type, balance in default_accounts:
             await self.create_account(name, account_type, balance, user_id=0)
 
@@ -514,7 +513,7 @@ class FinanceMCP(ModuleBase):
             ("Home", "expense", "🏠"),
             ("Other", "expense", "📋"),
         ]
-        
+
         # Default income categories
         income_categories = [
             ("Salary", "income", "💼"),
@@ -527,7 +526,7 @@ class FinanceMCP(ModuleBase):
         ]
 
         all_categories = expense_categories + income_categories
-        
+
         for name, cat_type, icon in all_categories:
             try:
                 self.db.execute("""
@@ -537,75 +536,75 @@ class FinanceMCP(ModuleBase):
             except Exception as e:
                 self.logger.debug(f"Category {name} might already exist: {e}")
 
-    def _load_categorization_patterns(self) -> Dict[str, List[str]]:
+    def _load_categorization_patterns(self) -> dict[str, list[str]]:
         """Load categorization patterns with extensive merchant and keyword matching."""
         return {
             'Food & Dining': [
                 # Restaurants & Fast Food
                 r'mcdonalds?', r'burger king', r'kfc', r'subway', r'pizza hut', r'dominos?',
                 r'taco bell', r'chipotle', r'panera', r'starbucks', r'dunkin', r'wendys?',
-                
+
                 # Groceries
                 r'walmart', r'target', r'kroger', r'safeway', r'whole foods', r'trader joes?',
                 r'costco', r'sams? club', r'aldi', r'publix', r'giant eagle', r'stop shop',
-                
+
                 # Food Keywords
                 r'restaurant', r'cafe', r'bistro', r'grill', r'kitchen', r'diner',
                 r'grocery', r'market', r'food', r'lunch', r'dinner', r'breakfast',
                 r'uber eats', r'doordash', r'grubhub', r'postmates', r'deliveroo'
             ],
-            
+
             'Transportation': [
                 # Ride Services
                 r'uber', r'lyft', r'taxi', r'cab',
-                
+
                 # Gas Stations
                 r'shell', r'exxon', r'bp', r'chevron', r'mobil', r'gulf', r'sunoco',
                 r'marathon', r'speedway', r'wawa', r'quick chek',
-                
+
                 # Transportation Keywords
                 r'gas', r'fuel', r'parking', r'garage', r'metro', r'bus', r'train',
                 r'airline', r'airport', r'toll', r'bridge', r'tunnel'
             ],
-            
+
             'Bills & Utilities': [
                 # Utilities
                 r'electric', r'gas', r'water', r'sewer', r'trash', r'internet',
                 r'cable', r'phone', r'wireless', r'cell', r'mobile',
-                
+
                 # Major Providers
                 r'verizon', r'att', r'tmobile', r't-mobile', r'sprint', r'comcast',
                 r'xfinity', r'spectrum', r'cox', r'directv', r'dish',
-                
+
                 # Services
                 r'insurance', r'rent', r'mortgage', r'loan', r'payment',
                 r'utility', r'bill', r'service'
             ],
-            
+
             'Shopping': [
                 # Major Retailers
                 r'amazon', r'ebay', r'target', r'walmart', r'costco', r'best buy',
                 r'home depot', r'lowes', r'macys', r'nordstrom', r'tj maxx',
                 r'marshall', r'ross', r'old navy', r'gap', r'banana republic',
-                
+
                 # Categories
                 r'clothing', r'shoes', r'electronics', r'furniture', r'appliance',
                 r'store', r'shop', r'retail', r'mall', r'outlet'
             ],
-            
+
             'Entertainment': [
                 # Streaming Services
                 r'netflix', r'hulu', r'disney', r'amazon prime', r'spotify', r'apple music',
                 r'youtube', r'hbo', r'showtime', r'paramount',
-                
+
                 # Entertainment Venues
                 r'theater', r'cinema', r'movie', r'concert', r'stadium', r'arena',
                 r'museum', r'zoo', r'aquarium', r'amusement', r'theme park',
-                
+
                 # Gaming
                 r'steam', r'playstation', r'xbox', r'nintendo', r'gaming'
             ],
-            
+
             'Healthcare': [
                 r'doctor', r'physician', r'hospital', r'clinic', r'medical',
                 r'pharmacy', r'cvs', r'walgreens', r'rite aid',
@@ -618,7 +617,7 @@ class FinanceMCP(ModuleBase):
     # ACCOUNT MANAGEMENT METHODS
     # ===============================
 
-    async def create_account(self, name: str, account_type: str, 
+    async def create_account(self, name: str, account_type: str,
                            initial_balance: float = 0.0, user_id: int = None) -> str:
         """Create a new financial account."""
         try:
@@ -678,12 +677,12 @@ Your new account is ready for transactions!"""
             for account in accounts:
                 acc_type = account['account_type']
                 balance = Decimal(str(account['balance']))
-                
+
                 if acc_type not in account_groups:
                     account_groups[acc_type] = []
-                
+
                 account_groups[acc_type].append(account)
-                
+
                 # Calculate net worth
                 if acc_type in ['checking', 'savings', 'investment', 'cash']:
                     total_assets += balance
@@ -692,27 +691,27 @@ Your new account is ready for transactions!"""
 
             # Format response
             response_lines = ["**💰 Account Overview**\n"]
-            
+
             for acc_type, accs in account_groups.items():
                 type_total = sum(Decimal(str(acc['balance'])) for acc in accs)
                 response_lines.append(f"**{acc_type.replace('_', ' ').title()}:**")
-                
+
                 for acc in accs:
                     balance = Decimal(str(acc['balance']))
                     status_icon = "✅" if balance >= 0 else "⚠️" if acc_type == 'credit_card' else "❌"
                     institution = f" ({acc['institution']})" if acc['institution'] else ""
-                    
+
                     response_lines.append(
                         f"{status_icon} #{acc['id']} {acc['name']}{institution}: "
                         f"{self.currency_symbol}{balance:.2f}"
                     )
-                
+
                 response_lines.append(f"  *Subtotal: {self.currency_symbol}{type_total:.2f}*\n")
 
             # Net worth summary
             net_worth = total_assets - total_liabilities
             response_lines.extend([
-                f"**📊 Financial Summary:**",
+                "**📊 Financial Summary:**",
                 f"Total Assets: {self.currency_symbol}{total_assets:.2f}",
                 f"Total Liabilities: {self.currency_symbol}{total_liabilities:.2f}",
                 f"**Net Worth: {self.currency_symbol}{net_worth:.2f}**"
@@ -736,7 +735,7 @@ Your new account is ready for transactions!"""
                 return f"❌ Account #{account_id} not found"
 
             balance = Decimal(str(account['balance']))
-            
+
             # Get recent transactions (last 5)
             recent_txns = self.db.query_all("""
                 SELECT transaction_type, amount, description, date
@@ -769,7 +768,7 @@ Your new account is ready for transactions!"""
                     emoji = "💰" if txn['transaction_type'] == 'income' else "💸"
                     sign = "+" if txn['transaction_type'] == 'income' else "-"
                     date_str = datetime.fromisoformat(txn['date']).strftime('%m/%d')
-                    
+
                     response += f"\n{emoji} {date_str}: {sign}{self.currency_symbol}{abs(amount):.2f} - {txn['description']}"
 
             return response
@@ -777,27 +776,27 @@ Your new account is ready for transactions!"""
         except Exception as e:
             return f"❌ Failed to get account balance: {str(e)[:100]}"
 
-    async def transfer_funds(self, from_account_id: int, to_account_id: int, 
+    async def transfer_funds(self, from_account_id: int, to_account_id: int,
                            amount: float, description: str = "Transfer", user_id: int = None) -> str:
         """Transfer funds between accounts."""
         try:
             # Validate accounts exist
             from_account = self.db.query_one("SELECT balance, name FROM accounts WHERE id = ?", (from_account_id,))
             to_account = self.db.query_one("SELECT name FROM accounts WHERE id = ?", (to_account_id,))
-            
+
             if not from_account or not to_account:
                 return "❌ One or both accounts not found"
 
             amount_decimal = Decimal(str(amount))
             current_balance = Decimal(str(from_account['balance']))
-            
+
             # Check sufficient funds
             if current_balance < amount_decimal:
                 return f"❌ Insufficient funds. Balance: {self.currency_symbol}{current_balance:.2f}, Transfer: {self.currency_symbol}{amount_decimal:.2f}"
 
             # Create transfer transactions (2 transactions for double-entry)
             transfer_date = datetime.now()
-            
+
             # Debit from source account
             self.db.execute("""
                 INSERT INTO transactions (user_id, account_id, transaction_type, amount, description, category, date, to_account_id)
@@ -811,9 +810,9 @@ Your new account is ready for transactions!"""
             """, (user_id or 0, to_account_id, amount_decimal, f"Transfer from {from_account['name']}: {description}", transfer_date, from_account_id))
 
             # Update account balances
-            self.db.execute("UPDATE accounts SET balance = balance - ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", 
+            self.db.execute("UPDATE accounts SET balance = balance - ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
                           (amount_decimal, from_account_id))
-            self.db.execute("UPDATE accounts SET balance = balance + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", 
+            self.db.execute("UPDATE accounts SET balance = balance + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
                           (amount_decimal, to_account_id))
 
             return f"""**✅ Transfer Completed**
@@ -847,7 +846,7 @@ New balance: {self.currency_symbol}{current_balance - amount_decimal:.2f}"""
                 return f"❌ Invalid transaction type. Use: {', '.join([t.value for t in TransactionType])}"
 
             amount_decimal = Decimal(str(amount))
-            
+
             # Auto-categorize if not provided and enabled
             if not category and self.auto_categorize:
                 category = self._auto_categorize_transaction(description, transaction_type)
@@ -868,7 +867,7 @@ New balance: {self.currency_symbol}{current_balance - amount_decimal:.2f}"""
                 emoji = "💸"
                 sign = "-"
 
-            self.db.execute("UPDATE accounts SET balance = balance + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", 
+            self.db.execute("UPDATE accounts SET balance = balance + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
                           (balance_change, account_id))
 
             # Get updated balance
@@ -899,16 +898,16 @@ Transaction ID: #{txn_id}"""
             self.logger.error(f"Transaction failed: {e}")
             return f"❌ Failed to add transaction: {str(e)[:100]}"
 
-    async def add_income(self, account_id: int, amount: float, description: str, 
+    async def add_income(self, account_id: int, amount: float, description: str,
                         category: str = "Other Income", user_id: int = None) -> str:
         """Add income transaction."""
-        return await self.add_transaction(account_id, TransactionType.INCOME.value, 
+        return await self.add_transaction(account_id, TransactionType.INCOME.value,
                                         amount, description, category, user_id)
 
-    async def add_expense(self, account_id: int, amount: float, description: str, 
+    async def add_expense(self, account_id: int, amount: float, description: str,
                          category: str = "", user_id: int = None) -> str:
         """Add expense transaction."""
-        return await self.add_transaction(account_id, TransactionType.EXPENSE.value, 
+        return await self.add_transaction(account_id, TransactionType.EXPENSE.value,
                                         amount, description, category, user_id)
 
     async def track_expense_legacy(self, amount: float, description: str, user_id: int = None) -> str:
@@ -919,13 +918,13 @@ Transaction ID: #{txn_id}"""
                 SELECT id FROM accounts WHERE user_id = ? OR ? IS NULL 
                 ORDER BY created_at LIMIT 1
             """, (user_id, user_id))
-            
+
             if not default_account:
                 # Create default account
                 account_id = await self._ensure_default_account()
             else:
                 account_id = default_account['id']
-            
+
             return await self.add_expense(account_id, amount, description, user_id=user_id)
         except Exception as e:
             return f"❌ Failed to track expense: {str(e)[:100]}"
@@ -958,13 +957,13 @@ Transaction ID: #{txn_id}"""
                 return "No transactions found."
 
             response = f"**📋 {title}**\n"
-            
+
             for txn in transactions:
                 amount = Decimal(str(txn['amount']))
                 date_str = datetime.fromisoformat(txn['date']).strftime('%m/%d %H:%M')
                 emoji = "💰" if txn['transaction_type'] == 'income' else "💸"
                 sign = "+" if txn['transaction_type'] == 'income' else "-"
-                
+
                 response += f"\n{emoji} {date_str} | {txn['account_name']}"
                 response += f"\n   {sign}{self.currency_symbol}{amount:.2f} - {txn['description']}"
                 if txn['category']:
@@ -979,7 +978,7 @@ Transaction ID: #{txn_id}"""
         """Get recent transactions within specified days."""
         try:
             start_date = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
-            
+
             transactions = self.db.query_all("""
                 SELECT t.*, a.name as account_name
                 FROM transactions t
@@ -1000,19 +999,19 @@ Transaction ID: #{txn_id}"""
                 grouped_transactions[date_key].append(txn)
 
             response = f"**📅 Recent Transactions ({days} days)**\n"
-            
+
             for date_key in sorted(grouped_transactions.keys(), reverse=True):
                 day_transactions = grouped_transactions[date_key]
                 day_total = sum(Decimal(str(t['amount'])) * (1 if t['transaction_type'] == 'income' else -1) for t in day_transactions)
-                
+
                 formatted_date = datetime.strptime(date_key, '%Y-%m-%d').strftime('%A, %B %d')
                 response += f"\n**{formatted_date}** (Net: {self.currency_symbol}{day_total:+.2f})"
-                
+
                 for txn in day_transactions:
                     amount = Decimal(str(txn['amount']))
                     emoji = "💰" if txn['transaction_type'] == 'income' else "💸"
                     sign = "+" if txn['transaction_type'] == 'income' else "-"
-                    
+
                     response += f"\n  {emoji} {sign}{self.currency_symbol}{amount:.2f} - {txn['description']}"
 
             return response
@@ -1153,7 +1152,7 @@ I'll alert you when you're approaching this limit."""
 
             total_spent = (Decimal(str(spent_this_month['total'])) if spent_this_month and spent_this_month['total'] else Decimal('0')) + amount
             budget_limit = Decimal(str(budget['monthly_limit']))
-            
+
             remaining = budget_limit - total_spent
             percent = (total_spent / budget_limit) * 100 if budget_limit > 0 else 0
 
@@ -1182,7 +1181,7 @@ Remaining: {self.currency_symbol}{remaining:.2f}"""
     # ===============================
 
     async def create_financial_goal(self, name: str, goal_type: str, target_amount: float,
-                                   target_date: str = None, account_id: int = None, 
+                                   target_date: str = None, account_id: int = None,
                                    category: str = "", user_id: int = None) -> str:
         """Create a new financial goal."""
         if not self.enable_goals:
@@ -1239,8 +1238,8 @@ Start tracking your progress with 'goal progress' or 'update goal'!"""
             if not goals:
                 return "No active financial goals. Create one with 'create goal'!"
 
-            response = f"**🎯 Financial Goals Progress**\n"
-            
+            response = "**🎯 Financial Goals Progress**\n"
+
             for goal in goals:
                 target_amount = Decimal(str(goal['target_amount']))
                 current_amount = Decimal(str(goal['current_amount']))
@@ -1283,7 +1282,7 @@ Start tracking your progress with 'goal progress' or 'update goal'!"""
             # Overall summary
             total_goals = len(goals)
             completed_goals = len([g for g in goals if Decimal(str(g['current_amount'])) >= Decimal(str(g['target_amount']))])
-            
+
             response += f"""
 
 **📊 Summary:**
@@ -1372,16 +1371,16 @@ Remaining: {self.currency_symbol}{remaining:.2f}
             """, (user_id, user_id, current_month_start))
 
             # Calculate net worth
-            assets = sum(Decimal(str(acc['total_balance'])) for acc in accounts_summary 
+            assets = sum(Decimal(str(acc['total_balance'])) for acc in accounts_summary
                         if acc['account_type'] in ['checking', 'savings', 'investment', 'cash'])
-            liabilities = sum(abs(Decimal(str(acc['total_balance']))) for acc in accounts_summary 
+            liabilities = sum(abs(Decimal(str(acc['total_balance']))) for acc in accounts_summary
                             if acc['account_type'] in ['credit_card', 'loan'])
             net_worth = assets - liabilities
 
             # Format monthly summary
             monthly_income = Decimal('0')
             monthly_expenses = Decimal('0')
-            
+
             for summary in monthly_summary:
                 if summary['transaction_type'] == 'income':
                     monthly_income = Decimal(str(summary['total_amount']))
@@ -1421,7 +1420,7 @@ Remaining: {self.currency_symbol}{remaining:.2f}
                 """, (user_id, user_id))
 
                 if goals_summary and goals_summary['total_goals']:
-                    response += f"\n\n**🎯 Goals:**"
+                    response += "\n\n**🎯 Goals:**"
                     response += f"\n• {goals_summary['completed_goals']}/{goals_summary['total_goals']} completed"
                     response += f"\n• Average progress: {goals_summary['avg_progress'] or 0:.1f}%"
 
@@ -1440,41 +1439,41 @@ Remaining: {self.currency_symbol}{remaining:.2f}
             metrics = await self._calculate_key_metrics(user_id)
             trends = await self._analyze_trends(user_id)
             alerts = await self._generate_alerts(user_id)
-            
+
             current_date = datetime.now().strftime('%B %d, %Y')
-            
+
             summary = f"""**📊 Executive Financial Summary**
 *{current_date}*
 
 **🎯 Key Metrics:**"""
-            
+
             for metric in metrics:
                 trend_icon = "📈" if metric.trend == "up" else "📉" if metric.trend == "down" else "➡️"
                 change_text = f" ({metric.change_percentage:+.1f}%)" if metric.change_percentage != 0 else ""
-                
+
                 summary += f"\n{metric.icon} **{metric.name}:** ${metric.value:.2f}{change_text} {trend_icon}"
-            
+
             # Trends section
             if trends:
                 summary += "\n\n**📈 Key Insights:**"
                 for trend in trends:
                     summary += f"\n• {trend}"
-            
+
             # Alerts section
             if alerts:
                 summary += "\n\n**⚠️ Alerts:**"
                 for alert in alerts:
                     summary += f"\n• {alert}"
-            
+
             # Recommendations
             recommendations = await self._generate_recommendations(metrics, user_id)
             if recommendations:
                 summary += "\n\n**💡 Recommendations:**"
                 for rec in recommendations:
                     summary += f"\n• {rec}"
-            
+
             return summary
-            
+
         except Exception as e:
             return f"❌ Failed to generate executive summary: {str(e)[:100]}"
 
@@ -1485,34 +1484,34 @@ Remaining: {self.currency_symbol}{remaining:.2f}
 
         try:
             scores = {}
-            
+
             # 1. Emergency Fund Score (20 points max)
             emergency_score = await self._calculate_emergency_fund_score(user_id)
             scores['emergency_fund'] = {'score': emergency_score, 'max': 20}
-            
+
             # 2. Savings Rate Score (25 points max)
             savings_score = await self._calculate_savings_rate_score(user_id)
             scores['savings_rate'] = {'score': savings_score, 'max': 25}
-            
+
             # 3. Debt-to-Income Score (20 points max)
             debt_score = await self._calculate_debt_score(user_id)
             scores['debt_management'] = {'score': debt_score, 'max': 20}
-            
+
             # 4. Budget Adherence Score (15 points max)
             budget_score = await self._calculate_budget_score(user_id)
             scores['budget_adherence'] = {'score': budget_score, 'max': 15}
-            
+
             # 5. Investment Score (10 points max)
             investment_score = 5 if not self.enable_investments else await self._calculate_investment_score(user_id)
             scores['investment'] = {'score': investment_score, 'max': 10}
-            
+
             # 6. Goal Progress Score (10 points max)
             goal_score = 5 if not self.enable_goals else await self._calculate_goal_progress_score(user_id)
             scores['goal_progress'] = {'score': goal_score, 'max': 10}
-            
+
             # Calculate total score
             total_score = sum(category['score'] for category in scores.values())
-            
+
             # Determine health level
             if total_score >= 90:
                 health_level = "Excellent"
@@ -1558,18 +1557,18 @@ Remaining: {self.currency_symbol}{remaining:.2f}
     # HELPER METHODS
     # ===============================
 
-    async def _calculate_key_metrics(self, user_id: int = None) -> List[FinancialMetric]:
+    async def _calculate_key_metrics(self, user_id: int = None) -> list[FinancialMetric]:
         """Calculate key financial metrics."""
         current_month = datetime.now().replace(day=1)
         previous_month = (current_month - timedelta(days=1)).replace(day=1)
-        
+
         metrics = []
-        
+
         # Net Worth
         current_net_worth = await self._calculate_net_worth(user_id)
         previous_net_worth = await self._calculate_net_worth(user_id, previous_month)
         net_worth_change = self._calculate_percentage_change(current_net_worth, previous_net_worth)
-        
+
         metrics.append(FinancialMetric(
             name="Net Worth",
             value=current_net_worth,
@@ -1579,18 +1578,18 @@ Remaining: {self.currency_symbol}{remaining:.2f}
             category="summary",
             icon="💰"
         ))
-        
+
         return metrics
 
     async def _calculate_net_worth(self, user_id: int = None, as_of_date: datetime = None) -> float:
         """Calculate net worth."""
         date_filter = ""
         params = [user_id, user_id]
-        
+
         if as_of_date:
             date_filter = "AND created_at <= ?"
             params.append(as_of_date.strftime('%Y-%m-%d'))
-        
+
         assets = self.db.query_one(f"""
             SELECT COALESCE(SUM(balance), 0) as total
             FROM accounts
@@ -1599,7 +1598,7 @@ Remaining: {self.currency_symbol}{remaining:.2f}
             AND is_active = TRUE
             {date_filter}
         """, params)
-        
+
         liabilities = self.db.query_one(f"""
             SELECT COALESCE(SUM(ABS(balance)), 0) as total
             FROM accounts
@@ -1608,16 +1607,16 @@ Remaining: {self.currency_symbol}{remaining:.2f}
             AND is_active = TRUE
             {date_filter}
         """, params)
-        
+
         return float(assets['total']) - float(liabilities['total'])
 
-    async def _analyze_trends(self, user_id: int = None, months: int = 6) -> List[str]:
+    async def _analyze_trends(self, user_id: int = None, months: int = 6) -> list[str]:
         """Analyze financial trends over time."""
         trends = []
-        
+
         # Simple trend analysis
         start_date = (datetime.now() - timedelta(days=30 * months)).strftime('%Y-%m-%d')
-        
+
         # Income trend
         income_trend = self.db.query_all("""
             SELECT 
@@ -1631,25 +1630,25 @@ Remaining: {self.currency_symbol}{remaining:.2f}
             GROUP BY strftime('%Y-%m', t.date)
             ORDER BY month
         """, (user_id, user_id, start_date))
-        
+
         if len(income_trend) >= 3:
             recent_avg = statistics.mean([float(row['monthly_income']) for row in income_trend[-3:]])
             older_avg = statistics.mean([float(row['monthly_income']) for row in income_trend[:-3]]) if len(income_trend) > 3 else income_trend[0]['monthly_income']
-            
+
             change_pct = ((recent_avg - older_avg) / older_avg * 100) if older_avg > 0 else 0
-            
+
             if change_pct > 10:
                 trends.append("Your income has been growing consistently")
             elif change_pct < -10:
                 trends.append("Your income has been declining - consider additional income sources")
-        
+
         return trends[:3]  # Return top 3 trends
 
-    async def _generate_alerts(self, user_id: int = None) -> List[str]:
+    async def _generate_alerts(self, user_id: int = None) -> list[str]:
         """Generate financial alerts and warnings."""
         alerts = []
         current_month = datetime.now().strftime('%Y-%m-01')
-        
+
         # Budget overage alerts
         budget_overages = self.db.query_all("""
             SELECT 
@@ -1672,11 +1671,11 @@ Remaining: {self.currency_symbol}{remaining:.2f}
             AND b.is_active = TRUE
             AND spent.amount > b.monthly_limit
         """, (user_id, user_id, current_month, user_id, user_id))
-        
+
         for overage in budget_overages:
             overage_amount = float(overage['spent_amount']) - float(overage['monthly_limit'])
             alerts.append(f"Over budget in {overage['category']} by ${overage_amount:.2f}")
-        
+
         # Low balance alerts
         low_balances = self.db.query_all("""
             SELECT name, balance, account_type
@@ -1686,21 +1685,21 @@ Remaining: {self.currency_symbol}{remaining:.2f}
             AND account_type IN ('checking', 'savings')
             AND balance < ?
         """, (user_id, user_id, self.low_balance_threshold))
-        
+
         for account in low_balances:
             alerts.append(f"Low balance: {account['name']} has ${float(account['balance']):.2f}")
-        
+
         return alerts
 
-    async def _generate_recommendations(self, metrics: List[FinancialMetric], user_id: int = None) -> List[str]:
+    async def _generate_recommendations(self, metrics: list[FinancialMetric], user_id: int = None) -> list[str]:
         """Generate personalized financial recommendations."""
         recommendations = []
-        
+
         # Basic recommendations based on metrics
         for metric in metrics:
             if metric.name == "Net Worth" and metric.trend == "down":
                 recommendations.append("Review expenses and create a budget to improve net worth")
-        
+
         # Check emergency fund
         checking_savings = self.db.query_one("""
             SELECT COALESCE(SUM(balance), 0) as total
@@ -1709,48 +1708,48 @@ Remaining: {self.currency_symbol}{remaining:.2f}
             AND account_type IN ('checking', 'savings')
             AND is_active = TRUE
         """, (user_id, user_id))
-        
+
         if checking_savings and float(checking_savings['total']) < 1000:
             recommendations.append("Build an emergency fund of 3-6 months of expenses")
-        
+
         return recommendations[:3]
 
     # Placeholder methods for health score calculation
     async def _calculate_emergency_fund_score(self, user_id: int = None) -> float:
         """Calculate emergency fund score."""
         return 15.0  # Placeholder
-    
+
     async def _calculate_savings_rate_score(self, user_id: int = None) -> float:
         """Calculate savings rate score."""
         return 20.0  # Placeholder
-    
+
     async def _calculate_debt_score(self, user_id: int = None) -> float:
         """Calculate debt management score."""
         return 18.0  # Placeholder
-    
+
     async def _calculate_budget_score(self, user_id: int = None) -> float:
         """Calculate budget adherence score."""
         return 12.0  # Placeholder
-    
+
     async def _calculate_investment_score(self, user_id: int = None) -> float:
         """Calculate investment score."""
         return 8.0  # Placeholder
-    
+
     async def _calculate_goal_progress_score(self, user_id: int = None) -> float:
         """Calculate goal progress score."""
         return 7.0  # Placeholder
 
-    async def _generate_health_recommendations(self, scores: Dict[str, Any]) -> List[str]:
+    async def _generate_health_recommendations(self, scores: dict[str, Any]) -> list[str]:
         """Generate health score recommendations."""
         recommendations = []
-        
+
         if scores['emergency_fund']['score'] < 15:
             recommendations.append("Build emergency fund to cover 3-6 months of expenses")
         if scores['savings_rate']['score'] < 20:
             recommendations.append("Increase savings rate to at least 15% of income")
         if scores['budget_adherence']['score'] < 10:
             recommendations.append("Create and stick to a detailed monthly budget")
-        
+
         return recommendations
 
     @staticmethod
@@ -1890,7 +1889,7 @@ Remaining: {self.currency_symbol}{remaining:.2f}
         try:
             # Get current month data
             current_month_start = datetime.now().replace(day=1).strftime('%Y-%m-%d')
-            
+
             # Total expenses this month
             monthly_total = self.db.query_one("""
                 SELECT SUM(amount) as total FROM transactions t
@@ -1904,7 +1903,7 @@ Remaining: {self.currency_symbol}{remaining:.2f}
                 SELECT category, monthly_limit FROM budgets 
                 WHERE (user_id = 0 OR user_id IS NULL) AND is_active = TRUE
             """)
-            
+
             budget_comparison = []
             total_budget = 0
 
@@ -1959,14 +1958,14 @@ Remaining: {self.currency_symbol}{remaining:.2f}
     # PLACEHOLDER METHODS FOR FUTURE FEATURES
     # ===============================
 
-    async def buy_investment(self, account_id: int, symbol: str, quantity: float, 
+    async def buy_investment(self, account_id: int, symbol: str, quantity: float,
                            price: float, user_id: int = None) -> str:
         """Buy investment (placeholder)."""
         if not self.enable_investments:
             return "❌ Investment tracking feature is not enabled."
         return "🚧 Investment features coming soon!"
 
-    async def sell_investment(self, account_id: int, symbol: str, quantity: float, 
+    async def sell_investment(self, account_id: int, symbol: str, quantity: float,
                             price: float, user_id: int = None) -> str:
         """Sell investment (placeholder)."""
         if not self.enable_investments:
@@ -1986,7 +1985,7 @@ Remaining: {self.currency_symbol}{remaining:.2f}
             return "❌ Retirement planning feature is not enabled."
         return "🚧 Retirement planning features coming soon!"
 
-    async def create_debt_payoff_plan(self, strategy: str = "avalanche", 
+    async def create_debt_payoff_plan(self, strategy: str = "avalanche",
                                     extra_payment: float = 0, user_id: int = None) -> str:
         """Create debt payoff plan (placeholder)."""
         if not self.enable_debt_planning:
@@ -2003,7 +2002,7 @@ Remaining: {self.currency_symbol}{remaining:.2f}
     # PRODUCTION-READY EXTENSIONS
     # ===============================
 
-    async def process_receipt(self, image_data: bytes, filename: str = "receipt.jpg", 
+    async def process_receipt(self, image_data: bytes, filename: str = "receipt.jpg",
                             transaction_id: int = None, user_id: int = None) -> str:
         """Process receipt image with OCR and extract data."""
         return await self.extensions.process_receipt_image(image_data, transaction_id, user_id, filename)
@@ -2022,32 +2021,32 @@ Remaining: {self.currency_symbol}{remaining:.2f}
             # Verify both document and transaction exist and belong to user
             document = self.db.query_one("""SELECT id FROM receipt_documents 
                 WHERE id = ? AND (user_id = ? OR ? IS NULL)""", (document_id, user_id, user_id))
-            
+
             transaction = self.db.query_one("""SELECT id, description, amount FROM transactions t
                 JOIN accounts a ON t.account_id = a.id 
                 WHERE t.id = ? AND (a.user_id = ? OR ? IS NULL)""", (transaction_id, user_id, user_id))
-                
+
             if not document or not transaction:
                 return "❌ Document or transaction not found"
-                
+
             # Update the link
-            self.db.execute("UPDATE receipt_documents SET transaction_id = ? WHERE id = ?", 
+            self.db.execute("UPDATE receipt_documents SET transaction_id = ? WHERE id = ?",
                           (transaction_id, document_id))
-            
+
             return f"""✅ **Receipt Linked Successfully**
 
 Receipt Document #{document_id} linked to:
 Transaction #{transaction_id}: {transaction['description']} (${transaction['amount']})
 
 Use 'get receipt {document_id}' to view details."""
-            
+
         except Exception as e:
             return f"❌ Failed to link receipt: {str(e)[:100]}"
 
     async def get_stock_quote(self, symbol: str) -> str:
         """Get real-time stock quote."""
         quote = await self.extensions.get_stock_quote(symbol)
-        
+
         if quote['success']:
             change_emoji = "📈" if quote['change'] >= 0 else "📉"
             return f"""**📊 Stock Quote: {quote['symbol']}**
@@ -2071,36 +2070,36 @@ Use 'get receipt {document_id}' to view details."""
         try:
             investments = self.db.query_all("""SELECT * FROM investments 
                 WHERE (user_id = ? OR ? IS NULL)""", (user_id, user_id))
-                
+
             if not investments:
                 return "No investments found. Add some with 'buy investment [symbol] [quantity] [price]'"
-                
+
             total_value = Decimal('0')
             total_cost = Decimal('0')
             analysis_lines = []
-            
+
             for inv in investments:
                 quantity = Decimal(str(inv['quantity']))
                 purchase_price = Decimal(str(inv['purchase_price']))
                 current_price = Decimal(str(inv['current_price'])) if inv['current_price'] else purchase_price
-                
+
                 cost_basis = quantity * purchase_price
                 current_value = quantity * current_price
                 gain_loss = current_value - cost_basis
                 gain_loss_pct = (gain_loss / cost_basis * 100) if cost_basis > 0 else 0
-                
+
                 total_value += current_value
                 total_cost += cost_basis
-                
+
                 emoji = "📈" if gain_loss >= 0 else "📉"
                 analysis_lines.append(
                     f"{emoji} **{inv['symbol']}**: {quantity} shares @ ${current_price:.2f} = ${current_value:.2f} ({gain_loss_pct:+.1f}%)"
                 )
-            
+
             total_gain_loss = total_value - total_cost
             total_gain_loss_pct = (total_gain_loss / total_cost * 100) if total_cost > 0 else 0
             overall_emoji = "📈" if total_gain_loss >= 0 else "📉"
-            
+
             return f"""**📊 Investment Portfolio Analysis**
 
 {chr(10).join(analysis_lines)}
@@ -2112,7 +2111,7 @@ Use 'get receipt {document_id}' to view details."""
 • **Number of Holdings:** {len(investments)}
 
 💡 Use 'update stock prices' to refresh current values."""
-            
+
         except Exception as e:
             return f"❌ Investment analysis failed: {str(e)[:100]}"
 
@@ -2132,13 +2131,13 @@ Use 'get receipt {document_id}' to view details."""
         """Provide tax planning advice based on current data."""
         try:
             current_year = datetime.now().year
-            
+
             # Get year-to-date deductible expenses
             ytd_deductions = await self.extensions.calculate_tax_deductions(current_year, user_id)
-            
+
             # Get remaining months in year
             months_remaining = 12 - datetime.now().month
-            
+
             # Get current month spending on deductible categories
             current_month = datetime.now().replace(day=1).strftime('%Y-%m-%d')
             deductible_spending = self.db.query_one("""SELECT SUM(t.amount) as total FROM transactions t
@@ -2146,14 +2145,14 @@ Use 'get receipt {document_id}' to view details."""
                 JOIN tax_categories tc ON t.category = tc.expense_category
                 WHERE (a.user_id = ? OR ? IS NULL) AND t.transaction_type = 'expense'
                 AND t.date >= ? AND tc.tax_deductible = TRUE""", (user_id, user_id, current_month))
-                
+
             monthly_deductible = float(deductible_spending['total']) if deductible_spending and deductible_spending['total'] else 0
-            
+
             advice = []
             if months_remaining > 0 and monthly_deductible > 0:
                 projected_annual = monthly_deductible * 12
                 advice.append(f"📊 Based on this month's spending, you're on track for ~${projected_annual:.0f} in deductions")
-            
+
             if months_remaining > 0:
                 advice.extend([
                     "💡 **Tax Planning Opportunities:**",
@@ -2162,7 +2161,7 @@ Use 'get receipt {document_id}' to view details."""
                     "• Check if you need any medical procedures (HSA eligible)",
                     "• Review retirement contributions (401k, IRA limits)"
                 ])
-                
+
             if datetime.now().month >= 10:  # Q4
                 advice.extend([
                     "⚠️ **Year-End Reminders:**",
@@ -2170,9 +2169,9 @@ Use 'get receipt {document_id}' to view details."""
                     "• Consider tax-loss harvesting on investments",
                     "• Review estimated tax payments if self-employed"
                 ])
-                
+
             advice_text = "\n".join(advice) if advice else "No specific advice at this time."
-            
+
             return f"""**🧾 Tax Planning Advice - {current_year}**
 
 {advice_text}
@@ -2183,7 +2182,7 @@ Use 'get receipt {document_id}' to view details."""
 • Use 'export tax data' when ready for tax preparation
 
 ⚠️ This is general advice - consult a tax professional for your specific situation."""
-            
+
         except Exception as e:
             return f"❌ Tax planning advice failed: {str(e)[:100]}"
 
@@ -2197,13 +2196,13 @@ Use 'get receipt {document_id}' to view details."""
             export_year = year or datetime.now().year
             year_start = f"{export_year}-01-01"
             year_end = f"{export_year}-12-31"
-            
+
             # Get all financial data
             export_data = {
                 'accounts': self.db.query_all("SELECT * FROM accounts WHERE (user_id = ? OR ? IS NULL)", (user_id, user_id)),
                 'transactions': self.db.query_all("""SELECT t.*, a.name as account_name FROM transactions t
                     JOIN accounts a ON t.account_id = a.id 
-                    WHERE (a.user_id = ? OR ? IS NULL) AND t.date BETWEEN ? AND ?""", 
+                    WHERE (a.user_id = ? OR ? IS NULL) AND t.date BETWEEN ? AND ?""",
                     (user_id, user_id, year_start, year_end)),
                 'budgets': self.db.query_all("SELECT * FROM budgets WHERE (user_id = ? OR ? IS NULL)", (user_id, user_id)),
                 'goals': self.db.query_all("SELECT * FROM financial_goals WHERE (user_id = ? OR ? IS NULL)", (user_id, user_id)) if self.enable_goals else [],
@@ -2215,15 +2214,15 @@ Use 'get receipt {document_id}' to view details."""
                     'version': '3.0.0'
                 }
             }
-            
+
             # Generate filename
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             filename = f"umbra_finance_export_{export_year}_{timestamp}.{format}"
-            
+
             # In production, this would save to R2 or file system
             transaction_count = len(export_data['transactions'])
             account_count = len(export_data['accounts'])
-            
+
             return f"""**📁 Financial Data Export Complete**
 
 **File:** {filename}
@@ -2239,7 +2238,7 @@ Use 'get receipt {document_id}' to view details."""
 • {len(export_data['investments'])} investments
 
 ✅ Export ready for download or backup."""
-            
+
         except Exception as e:
             return f"❌ Data export failed: {str(e)[:100]}"
 
@@ -2263,20 +2262,20 @@ Use 'get receipt {document_id}' to view details."""
                     'user_id': user_id
                 }
             }
-            
+
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             backup_filename = f"umbra_finance_backup_{timestamp}.json"
-            
+
             # Calculate backup size and stats
             backup_size = len(json.dumps(backup_data, default=str))
             total_transactions = len(backup_data['transactions'])
             date_range = "All time"
-            
+
             if backup_data['transactions']:
                 oldest = min(t['date'] for t in backup_data['transactions'])
                 newest = max(t['date'] for t in backup_data['transactions'])
                 date_range = f"{oldest} to {newest}"
-            
+
             return f"""**💾 Financial Data Backup Complete**
 
 **Backup File:** {backup_filename}
@@ -2295,7 +2294,7 @@ Use 'get receipt {document_id}' to view details."""
 ✅ Complete backup saved securely.
 
 💡 Store this backup file safely - it contains all your financial data!"""
-            
+
         except Exception as e:
             return f"❌ Backup failed: {str(e)[:100]}"
 
