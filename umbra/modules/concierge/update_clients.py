@@ -8,7 +8,7 @@ import re
 from dataclasses import dataclass
 from datetime import datetime, time
 from enum import Enum
-from typing import Any
+from typing import Any, Optional, Union
 
 from ...core.config import UmbraConfig
 from .docker_registry import DockerRegistryHelper
@@ -29,9 +29,9 @@ class ClientInfo:
     container_name: str
     image: str
     status: str
-    maintenance_window: str | None = None
+    maintenance_window: Optional[str] = None
     frozen: bool = False
-    last_update: datetime | None = None
+    last_update: Optional[datetime] = None
 
 
 @dataclass
@@ -131,7 +131,7 @@ class ClientUpdateManager:
 
         return False
 
-    async def get_client_info(self, client_name: str) -> ClientInfo | None:
+    async def get_client_info(self, client_name: str) -> Optional[ClientInfo]:
         """Get detailed information about a client."""
         try:
             # Get container info

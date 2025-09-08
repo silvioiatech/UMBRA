@@ -10,7 +10,7 @@ import logging
 import time
 from dataclasses import asdict, dataclass
 from enum import Enum
-from typing import Any
+from typing import Any, Optional, Union
 
 from ...ai.agent import UmbraAIAgent
 from ...core.config import UmbraConfig
@@ -40,9 +40,9 @@ class ExecutionAttempt:
     model: str
     attempt: int
     start_time: float
-    end_time: float | None = None
+    end_time: Optional[float] = None
     success: bool = False
-    error: str | None = None
+    error: Optional[str] = None
     tokens_used: int = 0
     cost_chf: float = 0.0
 

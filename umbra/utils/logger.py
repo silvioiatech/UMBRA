@@ -1,6 +1,7 @@
 """
 Logging utilities for Umbra bot.
 """
+from typing import Optional, Union
 
 import logging
 import re
@@ -8,7 +9,7 @@ import sys
 from pathlib import Path
 
 
-def setup_logging(log_level: str = "INFO", log_file: str | None = None):
+def setup_logging(log_level: str = "INFO", log_file: Optional[str] = None):
     """
     Setup logging configuration for the bot.
 
@@ -61,7 +62,7 @@ def setup_logging(log_level: str = "INFO", log_file: str | None = None):
     root_logger.info("🔧 Logging setup complete")
 
 
-def setup_logger(log_level: str = "INFO", log_file: str | None = None):
+def setup_logger(log_level: str = "INFO", log_file: Optional[str] = None):
     """Backward-compatible wrapper expected by other modules; delegates to setup_logging."""
     return setup_logging(log_level=log_level, log_file=log_file)
 

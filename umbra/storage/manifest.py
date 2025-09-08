@@ -7,7 +7,7 @@ import time
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Optional, Union
 
 from ..core.logger import get_context_logger
 from .objects import ObjectNotFoundError, ObjectStorage, ObjectStorageError
@@ -29,7 +29,7 @@ class ManifestEntry:
     """Single entry in a manifest file."""
     timestamp: str
     data: dict[str, Any]
-    entry_id: str | None = None
+    entry_id: Optional[str] = None
 
 class ManifestError(Exception):
     """Base exception for manifest operations."""
@@ -63,7 +63,7 @@ class ManifestManager:
         """Check if manifest manager is available."""
         return self.storage.is_available()
 
-    def _get_jsonl_key(self, module: str, name: str, user_id: int | None = None) -> str:
+    def _get_jsonl_key(self, module: str, name: str, user_id: Optional[int] = None) -> str:
         """Generate JSONL manifest key."""
         if user_id:
             return f"manifests/{module}/{name}-{user_id}.jsonl"
@@ -75,7 +75,7 @@ class ManifestManager:
         module: str,
         name: str,
         partition: str,
-        user_id: int | None = None
+        user_id: Optional[int] = None
     ) -> str:
         """Generate Parquet manifest key with partitioning."""
         if user_id:
@@ -88,7 +88,7 @@ class ManifestManager:
         module: str,
         name: str,
         entry: dict[str, Any],
-        user_id: int | None = None,
+        user_id: Optional[int] = None,
         max_retries: int = 3
     ) -> dict[str, Any]:
         """
@@ -237,9 +237,9 @@ class ManifestManager:
         self,
         module: str,
         name: str,
-        user_id: int | None = None,
-        limit: int | None = None,
-        since_timestamp: str | None = None
+        user_id: Optional[int] = None,
+        limit: Optional[int] = None,
+        since_timestamp: Optional[str] = None
     ) -> Iterator[ManifestEntry]:
         """
         Read entries from JSONL manifest.
@@ -321,8 +321,8 @@ class ManifestManager:
         module: str,
         name: str,
         data: list[dict[str, Any]],
-        partition: str | None = None,
-        user_id: int | None = None,
+        partition: Optional[str] = None,
+        user_id: Optional[int] = None,
         schema: dict[str, str] | None = None
     ) -> dict[str, Any]:
         """
@@ -440,8 +440,8 @@ class ManifestManager:
         module: str,
         name: str,
         data: list[dict[str, Any]],
-        partition: str | None = None,
-        user_id: int | None = None
+        partition: Optional[str] = None,
+        user_id: Optional[int] = None
     ) -> dict[str, Any]:
         """Fallback to CSV when Parquet is not available."""
 
@@ -501,7 +501,7 @@ class ManifestManager:
         module: str,
         name: str,
         partition: str,
-        user_id: int | None = None,
+        user_id: Optional[int] = None,
         columns: list[str] | None = None
     ) -> list[dict[str, Any]]:
         """
@@ -600,7 +600,7 @@ class ManifestManager:
         self,
         module: str,
         name: str,
-        user_id: int | None = None
+        user_id: Optional[int] = None
     ) -> list[dict[str, Any]]:
         """
         List available partitions for a manifest.

@@ -7,7 +7,7 @@ import json
 import mimetypes
 import time
 from datetime import UTC, datetime
-from typing import Any, Union
+from typing import Any, Union, Optional
 
 from ..core.logger import get_context_logger
 from .r2_client import R2Client, R2ClientError, R2NotFoundError
@@ -51,7 +51,7 @@ class ObjectStorage:
         self,
         key: str,
         data: Union[bytes, str],
-        content_type: str | None = None,
+        content_type: Optional[str] = None,
         metadata: dict[str, str] | None = None,
         verify_sha256: bool = True
     ) -> dict[str, Any]:
@@ -297,7 +297,7 @@ class ObjectStorage:
         self,
         prefix: str = "",
         max_keys: int = 1000,
-        continuation_token: str | None = None
+        continuation_token: Optional[str] = None
     ) -> dict[str, Any]:
         """
         List objects with optional prefix filtering.
@@ -438,7 +438,7 @@ class ObjectStorage:
         self,
         data: bytes,
         filename: str,
-        content_type: str | None = None
+        content_type: Optional[str] = None
     ) -> dict[str, Any]:
         """
         Store document with SHA256-based key in documents/ folder.

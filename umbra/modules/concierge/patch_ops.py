@@ -16,7 +16,7 @@ import time
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional, Union
 
 
 class PatchStatus(Enum):
@@ -36,12 +36,12 @@ class PatchOperation:
     diff: str
     status: PatchStatus
     created_at: float
-    applied_at: float | None = None
-    backup_path: str | None = None
+    applied_at: Optional[float] = None
+    backup_path: Optional[str] = None
     validation_results: list[dict[str, Any]] | None = None
     rollback_available: bool = False
-    ai_confidence: float | None = None
-    risk_assessment: str | None = None
+    ai_confidence: Optional[float] = None
+    risk_assessment: Optional[str] = None
 
 @dataclass
 class ValidationRule:
@@ -531,7 +531,7 @@ class PatchOps:
         except Exception as e:
             return False, f"Rollback failed: {str(e)}"
 
-    def _create_backup(self, file_path: str, patch_id: str) -> str | None:
+    def _create_backup(self, file_path: str, patch_id: str) -> Optional[str]:
         """Create backup of file before patching."""
         try:
             backup_name = f"{os.path.basename(file_path)}.{patch_id}.backup"
@@ -709,7 +709,7 @@ class PatchOps:
             user_id
         ))
 
-    def _get_patch_operation(self, patch_id: str) -> PatchOperation | None:
+    def _get_patch_operation(self, patch_id: str) -> Optional[PatchOperation]:
         """Get patch operation from database."""
         row = self.db.query_one(
             "SELECT * FROM patch_operations WHERE patch_id = ?",
@@ -750,7 +750,7 @@ class PatchOps:
             patch_op.patch_id
         ))
 
-    def list_patches(self, status: PatchStatus | None = None) -> list[PatchOperation]:
+    def list_patches(self, status: Optional[PatchStatus] = None) -> list[PatchOperation]:
         """List patch operations."""
         if status:
             rows = self.db.query_all(

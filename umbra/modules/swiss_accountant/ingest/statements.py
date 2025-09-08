@@ -761,7 +761,7 @@ class StatementParser:
                 'statement_info': {}
             }
 
-    def _detect_csv_columns(self, fieldnames: list[str]) -> dict[str, str | None]:
+    def _detect_csv_columns(self, fieldnames: list[str]) -> dict[str, Optional[str]]:
         """Detect column mapping for generic CSV."""
         mapping = {
             'booking_date': None,

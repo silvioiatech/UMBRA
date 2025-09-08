@@ -12,7 +12,7 @@ import os
 import subprocess
 import time
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional, Union
 
 from ..core.approvals import ApprovalManager, ApprovalStatus
 from ..core.redact import DataRedactor
@@ -29,7 +29,7 @@ class ExecutionResult:
     stderr: str
     execution_time: float
     risk_level: RiskLevel
-    approval_token: str | None = None
+    approval_token: Optional[str] = None
     redacted: bool = False
 
 @dataclass
@@ -37,11 +37,11 @@ class ExecutionRequest:
     """Command execution request."""
     command: str
     user_id: int
-    cwd: str | None = None
+    cwd: Optional[str] = None
     timeout: int = 30
     env: dict[str, str] | None = None
     use_sudo: bool = False
-    approval_token: str | None = None
+    approval_token: Optional[str] = None
 
 class ExecOps:
     """Secure command execution with risk classification and approvals."""
@@ -386,7 +386,7 @@ class ExecOps:
 
         return self.execute_command(request)
 
-    def get_execution_history(self, user_id: int | None = None, limit: int = 50) -> list[dict[str, Any]]:
+    def get_execution_history(self, user_id: Optional[int] = None, limit: int = 50) -> list[dict[str, Any]]:
         """Get command execution history."""
         if user_id:
             rows = self.db.query_all("""

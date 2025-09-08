@@ -12,7 +12,7 @@ import re
 import time
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any
+from typing import Any, Optional, Union
 
 from ...core.redact import DataRedactor
 
@@ -29,9 +29,9 @@ class LogSeverity(Enum):
 @dataclass
 class LogEntry:
     """Structured log entry."""
-    timestamp: str | None
+    timestamp: Optional[str]
     severity: LogSeverity
-    component: str | None
+    component: Optional[str]
     message: str
     raw_line: str
     line_number: int
@@ -53,8 +53,8 @@ class LogAnalysis:
 class StacktraceAnalysis:
     """Stacktrace analysis result."""
     analysis_id: str
-    error_type: str | None
-    root_cause: str | None
+    error_type: Optional[str]
+    root_cause: Optional[str]
     affected_components: list[str]
     suggested_fixes: list[str]
     related_logs: list[str]
@@ -85,32 +85,32 @@ class AIHelpers:
         """Initialize regex patterns for log severity detection."""
         return {
             LogSeverity.CRITICAL: [
-                re.compile(r'\b(CRITICAL|FATAL|PANIC|EMERGENCY)\b', re.IGNORECASE),
+                re.compile(r'\b(Union[CRITICAL, FATA]Union[L, PANI]Union[C, EMERGENCY])\b', re.IGNORECASE),
                 re.compile(r'\bcore dumped\b', re.IGNORECASE),
                 re.compile(r'\bsegmentation fault\b', re.IGNORECASE),
                 re.compile(r'\bkilled\b.*\bsignal\b', re.IGNORECASE),
             ],
             LogSeverity.ERROR: [
-                re.compile(r'\b(ERROR|ERR|FAIL|FAILED|FAILURE)\b', re.IGNORECASE),
+                re.compile(r'\b(Union[ERROR, ER]Union[R, FAI]Union[L, FAILE]Union[D, FAILURE])\b', re.IGNORECASE),
                 re.compile(r'\bexception\b', re.IGNORECASE),
                 re.compile(r'\bstack trace\b', re.IGNORECASE),
                 re.compile(r'\bconnection refused\b', re.IGNORECASE),
                 re.compile(r'\bpermission denied\b', re.IGNORECASE),
             ],
             LogSeverity.WARNING: [
-                re.compile(r'\b(WARN|WARNING|CAUTION)\b', re.IGNORECASE),
+                re.compile(r'\b(Union[WARN, WARNIN]Union[G, CAUTION])\b', re.IGNORECASE),
                 re.compile(r'\bdeprecated\b', re.IGNORECASE),
                 re.compile(r'\bretrying\b', re.IGNORECASE),
                 re.compile(r'\btimeout\b', re.IGNORECASE),
             ],
             LogSeverity.INFO: [
-                re.compile(r'\b(INFO|INFORMATION)\b', re.IGNORECASE),
+                re.compile(r'\b(Union[INFO, INFORMATION])\b', re.IGNORECASE),
                 re.compile(r'\bstarted\b', re.IGNORECASE),
                 re.compile(r'\bstopped\b', re.IGNORECASE),
                 re.compile(r'\binitialized\b', re.IGNORECASE),
             ],
             LogSeverity.DEBUG: [
-                re.compile(r'\b(DEBUG|TRACE|VERBOSE)\b', re.IGNORECASE),
+                re.compile(r'\b(Union[DEBUG, TRAC]Union[E, VERBOSE])\b', re.IGNORECASE),
             ]
         }
 
@@ -124,7 +124,7 @@ class AIHelpers:
             'docker': [
                 re.compile(r'\bdocker\b', re.IGNORECASE),
                 re.compile(r'\bcontainerd\b', re.IGNORECASE),
-                re.compile(r'\bcontainer\b.*\b(started|stopped|died)\b', re.IGNORECASE),
+                re.compile(r'\bcontainer\b.*\b(Union[started, stoppe]Union[d, died])\b', re.IGNORECASE),
             ],
             'systemd': [
                 re.compile(r'\bsystemd\b', re.IGNORECASE),
@@ -135,11 +135,11 @@ class AIHelpers:
                 re.compile(r'\bSSH\b', re.IGNORECASE),
             ],
             'database': [
-                re.compile(r'\b(mysql|postgresql|postgres|mongodb|redis)\b', re.IGNORECASE),
+                re.compile(r'\b(Union[mysql, postgresq]Union[l, postgre]Union[s, mongod]Union[b, redis])\b', re.IGNORECASE),
                 re.compile(r'\bSQL\b', re.IGNORECASE),
             ],
             'web_server': [
-                re.compile(r'\b(apache|httpd|lighttpd)\b', re.IGNORECASE),
+                re.compile(r'\b(Union[apache, http]Union[d, lighttpd])\b', re.IGNORECASE),
                 re.compile(r'\bHTTP\b', re.IGNORECASE),
             ]
         }
@@ -195,8 +195,8 @@ class AIHelpers:
     async def analyze_logs(
         self,
         log_content: str,
-        context: str | None = None,
-        filter_severity: LogSeverity | None = None
+        context: Optional[str] = None,
+        filter_severity: Optional[LogSeverity] = None
     ) -> LogAnalysis:
         """
         Analyze log content with AI assistance.
@@ -279,7 +279,7 @@ class AIHelpers:
     async def explain_stacktrace(
         self,
         stacktrace: str,
-        context: str | None = None
+        context: Optional[str] = None
     ) -> StacktraceAnalysis:
         """
         Explain stacktrace with AI assistance.
@@ -329,7 +329,7 @@ class AIHelpers:
 
         return analysis
 
-    async def _generate_ai_log_analysis(self, entries: list[LogEntry], context: str | None) -> dict[str, Any]:
+    async def _generate_ai_log_analysis(self, entries: list[LogEntry], context: Optional[str]) -> dict[str, Any]:
         """Generate AI-powered log analysis."""
 
         # Prepare context for AI
@@ -408,7 +408,7 @@ Keep analysis technical but clear. Focus on actionable insights."""
                 'confidence': 0.0
             }
 
-    async def _generate_ai_stacktrace_analysis(self, stacktrace: str, context: str | None) -> dict[str, Any]:
+    async def _generate_ai_stacktrace_analysis(self, stacktrace: str, context: Optional[str]) -> dict[str, Any]:
         """Generate AI-powered stacktrace analysis."""
 
         prompt = f"""Analyze this stacktrace and provide debugging guidance:
@@ -585,7 +585,7 @@ Be precise and actionable in your response."""
 
         return summary
 
-    def _extract_error_type(self, stacktrace: str) -> str | None:
+    def _extract_error_type(self, stacktrace: str) -> Optional[str]:
         """Extract error type from stacktrace."""
         # Common error patterns
         error_patterns = [
@@ -619,7 +619,7 @@ Be precise and actionable in your response."""
 
         return list(set(components))[:5]  # Unique, limit to 5
 
-    def _analyze_root_cause(self, stacktrace: str) -> str | None:
+    def _analyze_root_cause(self, stacktrace: str) -> Optional[str]:
         """Analyze root cause from stacktrace."""
         # Look for common root cause indicators
         if 'NullPointerException' in stacktrace:
@@ -635,7 +635,7 @@ Be precise and actionable in your response."""
 
         return None
 
-    def _generate_manual_fixes(self, error_type: str | None, stacktrace: str) -> list[str]:
+    def _generate_manual_fixes(self, error_type: Optional[str], stacktrace: str) -> list[str]:
         """Generate manual fix suggestions based on error type."""
         fixes = []
 
@@ -662,7 +662,7 @@ Be precise and actionable in your response."""
 
         return fixes[:3]
 
-    def _generate_manual_explanation(self, error_type: str | None, stacktrace: str) -> str:
+    def _generate_manual_explanation(self, error_type: Optional[str], stacktrace: str) -> str:
         """Generate manual explanation of the error."""
         if error_type:
             return f"A {error_type} occurred in the system. This typically indicates an issue with the application logic or system configuration. Review the stacktrace to identify the specific line and method where the error originated."

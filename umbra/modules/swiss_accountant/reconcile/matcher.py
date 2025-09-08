@@ -8,7 +8,7 @@ import re
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from enum import Enum
-from typing import Any
+from typing import Any, Optional, Union
 
 
 class MatchType(Enum):
@@ -272,7 +272,7 @@ class ExpenseTransactionMatcher:
             self.logger.error(f"Matching process failed: {e}")
             return []
 
-    def _get_transaction_date(self, transaction: dict[str, Any]) -> date | None:
+    def _get_transaction_date(self, transaction: dict[str, Any]) -> Optional[date]:
         """Get best available date from transaction."""
         try:
             # Prefer value date, fall back to booking date
@@ -291,7 +291,7 @@ class ExpenseTransactionMatcher:
                               expense_amount: Decimal,
                               expense_date: date,
                               transaction_amount: Decimal,
-                              transaction_date: date | None,
+                              transaction_date: Optional[date],
                               strategy: MatchStrategy) -> dict[str, Any]:
         """Calculate match score between expense and transaction."""
         try:
@@ -432,7 +432,7 @@ class ExpenseTransactionMatcher:
                 'description_score': 0.05
             }
 
-    def _extract_reference(self, text: str) -> str | None:
+    def _extract_reference(self, text: str) -> Optional[str]:
         """Extract reference number from text."""
         try:
             if not text:

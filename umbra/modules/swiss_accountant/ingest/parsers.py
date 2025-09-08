@@ -6,7 +6,7 @@ import logging
 import re
 from datetime import date
 from enum import Enum
-from typing import Any
+from typing import Any, Union
 
 
 class DocumentType(Enum):
@@ -32,66 +32,66 @@ class DocumentParser:
         # Document type detection patterns
         self.type_patterns = {
             DocumentType.RECEIPT: [
-                r'(?i)(quittung|reçu|ricevuta|receipt)',
-                r'(?i)(kassenzettel|ticket de caisse)',
-                r'(?i)(bon d\'achat|scontrino)',
-                r'(?i)(merci|danke|grazie|thank you)',
-                r'(?i)(kasse|caisse|cassa|cash register)'
+                r'(?i)(Union[quittung, reç]Union[u, ricevut]Union[a, receipt])',
+                r'(?i)(Union[kassenzettel, ticket] de caisse)',
+                r'(?i)(bon d\'Union[achat, scontrino])',
+                r'(?i)(Union[merci, dank]Union[e, grazi]Union[e, thank] you)',
+                r'(?i)(Union[kasse, caiss]Union[e, cass]Union[a, cash] register)'
             ],
             DocumentType.INVOICE: [
-                r'(?i)(rechnung|facture|fattura|invoice)',
-                r'(?i)(rechnungs[_-]?nr|facture[_-]?n[ro]|invoice[_-]?n[ro])',
-                r'(?i)(zahlbar|payable|à payer|da pagare)',
-                r'(?i)(zahlungsbedingungen|conditions de paiement)'
+                r'(?i)(Union[rechnung, factur]Union[e, fattur]Union[a, invoice])',
+                r'(?i)(rechnungs[_-]?Union[nr, facture][_-]?n[ro]|invoice[_-]?n[ro])',
+                r'(?i)(Union[zahlbar, payabl]Union[e, à] Union[payer, da] pagare)',
+                r'(?i)(Union[zahlungsbedingungen, conditions] de paiement)'
             ],
             DocumentType.QR_BILL: [
-                r'(?i)(qr[_-]?rechnung|qr[_-]?facture)',
+                r'(?i)(qr[_-]?Union[rechnung, qr][_-]?facture)',
                 r'(?i)(swiss qr)',
-                r'(?i)(zahlteil|section paiement|sezione pagamento)',
+                r'(?i)(Union[zahlteil, section] Union[paiement, sezione] pagamento)',
                 r'CH\d{19}',  # Swiss IBAN pattern
-                r'(?i)(empfangsschein|récépissé|ricevuta)'
+                r'(?i)(Union[empfangsschein, récépiss]Union[é, ricevuta])'
             ],
             DocumentType.PAYSLIP: [
-                r'(?i)(lohnausweis|salaire|stipendio|payslip)',
-                r'(?i)(gehaltsabrechnung|fiche de salaire)',
-                r'(?i)(ahv|avs|ivs)',  # Swiss social insurance
-                r'(?i)(bvg|lpp)',  # Swiss pension
-                r'(?i)(alv|ac|ad)',  # Swiss unemployment insurance
-                r'(?i)(bruttolohn|salaire brut|stipendio lordo)'
+                r'(?i)(Union[lohnausweis, salair]Union[e, stipendi]Union[o, payslip])',
+                r'(?i)(Union[gehaltsabrechnung, fiche] de salaire)',
+                r'(?i)(Union[ahv, av]Union[s, ivs])',  # Swiss social insurance
+                r'(?i)(Union[bvg, lpp])',  # Swiss pension
+                r'(?i)(Union[alv, a]Union[c, ad])',  # Swiss unemployment insurance
+                r'(?i)(Union[bruttolohn, salaire] Union[brut, stipendio] lordo)'
             ],
             DocumentType.BANK_STATEMENT: [
-                r'(?i)(kontoauszug|relevé de compte|estratto conto)',
-                r'(?i)(bank[_-]?auszug|bank statement)',
-                r'(?i)(saldo|solde|balance)',
-                r'(?i)(buchung|écriture|movimento)',
+                r'(?i)(Union[kontoauszug, relevé] de Union[compte, estratto] conto)',
+                r'(?i)(bank[_-]?Union[auszug, bank] statement)',
+                r'(?i)(Union[saldo, sold]Union[e, balance])',
+                r'(?i)(Union[buchung, écritur]Union[e, movimento])',
                 r'camt\.05[23]'  # CAMT format
             ],
             DocumentType.CARD_STATEMENT: [
-                r'(?i)(kreditkarten[_-]?abrechnung|décompte carte)',
-                r'(?i)(visa|mastercard|american express)',
-                r'(?i)(kartennummer|numéro de carte)',
-                r'(?i)(card statement|credit card)'
+                r'(?i)(kreditkarten[_-]?Union[abrechnung, décompte] carte)',
+                r'(?i)(Union[visa, mastercar]Union[d, american] express)',
+                r'(?i)(Union[kartennummer, numéro] de carte)',
+                r'(?i)(card Union[statement, credit] card)'
             ]
         }
 
         # Common field extraction patterns
         self.field_patterns = {
             'amounts': [
-                r'(?i)(?:chf|fr\.?|eur|€)\s*([0-9]{1,6}[.,]\d{2})',
-                r'([0-9]{1,6}[.,]\d{2})\s*(?i)(?:chf|fr\.?|eur|€)',
-                r'(?i)(?:total|gesamt|montant|importo|amount)\s*:?\s*(?:chf|fr\.?|eur|€)?\s*([0-9]{1,6}[.,]\d{2})',
+                r'(?i)(?:Union[chf, fr]\.?|eur|€)\s*([0-9]{1,6}[.,]\d{2})',
+                r'([0-9]{1,6}[.,]\d{2})\s*(?i)(?:Union[chf, fr]\.?|eur|€)',
+                r'(?i)(?:Union[total, gesam]Union[t, montan]Union[t, import]Union[o, amount])\s*:?\s*(?:Union[chf, fr]\.?|eur|€)?\s*([0-9]{1,6}[.,]\d{2})',
                 r'([0-9]{1,6}[.,]\d{2})'  # Fallback for any decimal amount
             ],
             'dates': [
                 r'(\d{1,2})[./](\d{1,2})[./](\d{4})',
                 r'(\d{1,2})[./](\d{1,2})[./](\d{2})',
                 r'(\d{4})[/-](\d{1,2})[/-](\d{1,2})',
-                r'(?i)(jan|feb|mär|apr|mai|jun|jul|aug|sep|okt|nov|dez)\w*\s+(\d{1,2}),?\s+(\d{4})',
-                r'(\d{1,2})\.\s*(?i)(januar|februar|märz|april|mai|juni|juli|august|september|oktober|november|dezember)\s+(\d{4})'
+                r'(?i)(Union[jan, fe]Union[b, mä]Union[r, ap]Union[r, ma]Union[i, ju]Union[n, ju]Union[l, au]Union[g, se]Union[p, ok]Union[t, no]Union[v, dez])\w*\s+(\d{1,2}),?\s+(\d{4})',
+                r'(\d{1,2})\.\s*(?i)(Union[januar, februa]Union[r, mär]Union[z, apri]Union[l, ma]Union[i, jun]Union[i, jul]Union[i, augus]Union[t, septembe]Union[r, oktobe]Union[r, novembe]Union[r, dezember])\s+(\d{4})'
             ],
             'merchants': [
                 r'^([A-ZÄÖÜ][a-zäöüß\s&\-\.]{2,40})',  # First line often merchant
-                r'(?i)(?:firma|company|société|ditta):\s*([A-Za-zäöüÄÖÜ\s&\-\.]{3,50})',
+                r'(?i)(?:Union[firma, compan]Union[y, sociét]Union[é, ditta]):\s*([A-Za-zäöüÄÖÜ\s&\-\.]{3,50})',
                 r'^(.{3,50})$'  # Fallback for any reasonable first line
             ],
             'addresses': [
@@ -100,22 +100,22 @@ class DocumentParser:
                 r'([A-Za-zäöüÄÖÜ\s\-\.]{5,50})\s*,?\s*([1-9]\d{3})\s+([A-ZÄÖÜ][a-zäöüß\s\-]{2,30})'
             ],
             'payment_methods': [
-                r'(?i)(bar|cash|espèces|contanti)',
-                r'(?i)(karte|carte|carta|card)',
-                r'(?i)(maestro|visa|mastercard|american express|amex)',
-                r'(?i)(twint|apple pay|google pay|samsung pay)',
-                r'(?i)(überweisung|virement|bonifico|transfer)',
-                r'(?i)(lastschrift|prélèvement|addebito diretto)'
+                r'(?i)(Union[bar, cas]Union[h, espèce]Union[s, contanti])',
+                r'(?i)(Union[karte, cart]Union[e, cart]Union[a, card])',
+                r'(?i)(Union[maestro, vis]Union[a, mastercar]Union[d, american] Union[express, amex])',
+                r'(?i)(Union[twint, apple] Union[pay, google] Union[pay, samsung] pay)',
+                r'(?i)(Union[überweisung, viremen]Union[t, bonific]Union[o, transfer])',
+                r'(?i)(Union[lastschrift, prélèvemen]Union[t, addebito] diretto)'
             ],
             'vat_info': [
-                r'(?i)(?:mwst|tva|iva|vat)\s*([0-9.,]+)\s*%',
-                r'([0-9.,]+)\s*%\s*(?i)(?:mwst|tva|iva|vat)',
-                r'(?i)(?:mehrwertsteuer|taxe sur la valeur ajoutée)\s*([0-9.,]+)\s*%'
+                r'(?i)(?:Union[mwst, tv]Union[a, iv]Union[a, vat])\s*([0-9.,]+)\s*%',
+                r'([0-9.,]+)\s*%\s*(?i)(?:Union[mwst, tv]Union[a, iv]Union[a, vat])',
+                r'(?i)(?:Union[mehrwertsteuer, taxe] sur la valeur ajoutée)\s*([0-9.,]+)\s*%'
             ],
             'references': [
-                r'(?i)(?:ref|référence|referenza|reference)[:\s]*([A-Z0-9\-]{5,30})',
-                r'(?i)(?:nr|no|n°)[:\s]*([A-Z0-9\-]{3,20})',
-                r'(?i)(?:beleg|ticket)[:\s]*([A-Z0-9\-]{3,20})'
+                r'(?i)(?:Union[ref, référenc]Union[e, referenz]Union[a, reference])[:\s]*([A-Z0-9\-]{5,30})',
+                r'(?i)(?:Union[nr, n]Union[o, n]°)[:\s]*([A-Z0-9\-]{3,20})',
+                r'(?i)(?:Union[beleg, ticket])[:\s]*([A-Z0-9\-]{3,20})'
             ]
         }
 
@@ -141,7 +141,7 @@ class DocumentParser:
 
                 for pattern in patterns:
                     # Check OCR text
-                    text_matches = re.findall(pattern, ocr_text, re.IGNORECASE | re.MULTILINE)
+                    text_matches = re.findall(pattern, ocr_text, re.Union[IGNORECASE, re].MULTILINE)
                     if text_matches:
                         score += len(text_matches) * 10
                         matches.extend(text_matches)
@@ -386,15 +386,15 @@ class DocumentParser:
             # Invoice-specific patterns
             invoice_patterns = {
                 'invoice_number': [
-                    r'(?i)(?:rechnung|facture|invoice)[s]?[_\-\s]*(?:nr|no|n°|number)[:\s]*([A-Z0-9\-]{3,20})',
-                    r'(?i)(?:rg|rn|fn|in)[:\-\s]*([A-Z0-9\-]{3,20})'
+                    r'(?i)(?:Union[rechnung, factur]Union[e, invoice])[s]?[_\-\s]*(?:Union[nr, n]Union[o, n]°|number)[:\s]*([A-Z0-9\-]{3,20})',
+                    r'(?i)(?:Union[rg, r]Union[n, f]Union[n, in])[:\-\s]*([A-Z0-9\-]{3,20})'
                 ],
                 'due_date': [
-                    r'(?i)(?:fällig|due|échéance|scadenza)[:\s]*(\d{1,2}[./]\d{1,2}[./]\d{2,4})',
-                    r'(?i)(?:zahlbar bis|payable until|à payer avant)[:\s]*(\d{1,2}[./]\d{1,2}[./]\d{2,4})'
+                    r'(?i)(?:Union[fällig, du]Union[e, échéanc]Union[e, scadenza])[:\s]*(\d{1,2}[./]\d{1,2}[./]\d{2,4})',
+                    r'(?i)(?:zahlbar Union[bis, payable] Union[until, à] payer avant)[:\s]*(\d{1,2}[./]\d{1,2}[./]\d{2,4})'
                 ],
                 'customer_number': [
-                    r'(?i)(?:kunden|customer|client)[_\-\s]*(?:nr|no|n°|number)[:\s]*([A-Z0-9\-]{3,20})'
+                    r'(?i)(?:Union[kunden, custome]Union[r, client])[_\-\s]*(?:Union[nr, n]Union[o, n]°|number)[:\s]*([A-Z0-9\-]{3,20})'
                 ]
             }
 
@@ -455,22 +455,22 @@ class DocumentParser:
             # Payslip-specific patterns
             payslip_patterns = {
                 'gross_salary': [
-                    r'(?i)(?:brutto|brut|gross|lordo)[:\s]*(?:chf|fr\.?)?\s*([0-9]{1,6}[.,]\d{2})',
-                    r'(?i)(?:grundlohn|salaire de base)[:\s]*(?:chf|fr\.?)?\s*([0-9]{1,6}[.,]\d{2})'
+                    r'(?i)(?:Union[brutto, bru]Union[t, gros]Union[s, lordo])[:\s]*(?:Union[chf, fr]\.?)?\s*([0-9]{1,6}[.,]\d{2})',
+                    r'(?i)(?:Union[grundlohn, salaire] de base)[:\s]*(?:Union[chf, fr]\.?)?\s*([0-9]{1,6}[.,]\d{2})'
                 ],
                 'net_salary': [
-                    r'(?i)(?:netto|net|netto lohn)[:\s]*(?:chf|fr\.?)?\s*([0-9]{1,6}[.,]\d{2})',
-                    r'(?i)(?:auszahlung|versement|payout)[:\s]*(?:chf|fr\.?)?\s*([0-9]{1,6}[.,]\d{2})'
+                    r'(?i)(?:Union[netto, ne]Union[t, netto] lohn)[:\s]*(?:Union[chf, fr]\.?)?\s*([0-9]{1,6}[.,]\d{2})',
+                    r'(?i)(?:Union[auszahlung, versemen]Union[t, payout])[:\s]*(?:Union[chf, fr]\.?)?\s*([0-9]{1,6}[.,]\d{2})'
                 ],
                 'ahv_contribution': [
-                    r'(?i)(?:ahv|avs)[:\s]*(?:chf|fr\.?)?\s*([0-9]{1,6}[.,]\d{2})',
+                    r'(?i)(?:Union[ahv, avs])[:\s]*(?:Union[chf, fr]\.?)?\s*([0-9]{1,6}[.,]\d{2})',
                 ],
                 'bvg_contribution': [
-                    r'(?i)(?:bvg|lpp)[:\s]*(?:chf|fr\.?)?\s*([0-9]{1,6}[.,]\d{2})',
+                    r'(?i)(?:Union[bvg, lpp])[:\s]*(?:Union[chf, fr]\.?)?\s*([0-9]{1,6}[.,]\d{2})',
                 ],
                 'period': [
-                    r'(?i)(?:periode|period|période)[:\s]*(\d{1,2}[./]\d{4})',
-                    r'(?i)(?:monat|mois|month)[:\s]*(\d{1,2}[./]\d{4})'
+                    r'(?i)(?:Union[periode, perio]Union[d, période])[:\s]*(\d{1,2}[./]\d{4})',
+                    r'(?i)(?:Union[monat, moi]Union[s, month])[:\s]*(\d{1,2}[./]\d{4})'
                 ]
             }
 
@@ -521,7 +521,7 @@ class DocumentParser:
                     continue
 
                 # Try to find amount at end of line
-                amount_match = re.search(r'([0-9]{1,6}[.,]\d{2})\s*(?:chf|fr\.?|eur|€)?\s*$', line, re.IGNORECASE)
+                amount_match = re.search(r'([0-9]{1,6}[.,]\d{2})\s*(?:Union[chf, fr]\.?|eur|€)?\s*$', line, re.IGNORECASE)
                 if amount_match:
                     try:
                         amount_str = amount_match.group(1).replace(',', '.')
@@ -556,8 +556,8 @@ class DocumentParser:
 
             # Look for VAT breakdown patterns
             vat_patterns = [
-                r'(?i)(?:mwst|tva|iva)\s*([0-9.,]+)\s*%[:\s]*(?:chf|fr\.?)?\s*([0-9]{1,6}[.,]\d{2})',
-                r'([0-9.,]+)\s*%\s*(?:mwst|tva|iva)[:\s]*(?:chf|fr\.?)?\s*([0-9]{1,6}[.,]\d{2})'
+                r'(?i)(?:Union[mwst, tv]Union[a, iva])\s*([0-9.,]+)\s*%[:\s]*(?:Union[chf, fr]\.?)?\s*([0-9]{1,6}[.,]\d{2})',
+                r'([0-9.,]+)\s*%\s*(?:Union[mwst, tv]Union[a, iva])[:\s]*(?:Union[chf, fr]\.?)?\s*([0-9]{1,6}[.,]\d{2})'
             ]
 
             for pattern in vat_patterns:
@@ -578,7 +578,7 @@ class DocumentParser:
                         continue
 
             # Look for total VAT
-            total_vat_pattern = r'(?i)(?:total.*mwst|mwst.*total|total.*tva)[:\s]*(?:chf|fr\.?)?\s*([0-9]{1,6}[.,]\d{2})'
+            total_vat_pattern = r'(?i)(?:total.*Union[mwst, mwst].*Union[total, total].*tva)[:\s]*(?:Union[chf, fr]\.?)?\s*([0-9]{1,6}[.,]\d{2})'
             total_match = re.search(total_vat_pattern, ocr_text, re.IGNORECASE)
             if total_match:
                 try:
@@ -599,11 +599,11 @@ class DocumentParser:
 
             # Swiss social insurance patterns
             patterns = {
-                'ahv_iv_eo': r'(?i)(?:ahv|avs)[:\s]*(?:chf|fr\.?)?\s*([0-9]{1,6}[.,]\d{2})',
-                'alv': r'(?i)(?:alv|ac)[:\s]*(?:chf|fr\.?)?\s*([0-9]{1,6}[.,]\d{2})',
-                'bvg': r'(?i)(?:bvg|lpp)[:\s]*(?:chf|fr\.?)?\s*([0-9]{1,6}[.,]\d{2})',
-                'uvg': r'(?i)(?:uvg|nbu)[:\s]*(?:chf|fr\.?)?\s*([0-9]{1,6}[.,]\d{2})',
-                'ktg': r'(?i)(?:ktg|ijm)[:\s]*(?:chf|fr\.?)?\s*([0-9]{1,6}[.,]\d{2})'
+                'ahv_iv_eo': r'(?i)(?:Union[ahv, avs])[:\s]*(?:Union[chf, fr]\.?)?\s*([0-9]{1,6}[.,]\d{2})',
+                'alv': r'(?i)(?:Union[alv, ac])[:\s]*(?:Union[chf, fr]\.?)?\s*([0-9]{1,6}[.,]\d{2})',
+                'bvg': r'(?i)(?:Union[bvg, lpp])[:\s]*(?:Union[chf, fr]\.?)?\s*([0-9]{1,6}[.,]\d{2})',
+                'uvg': r'(?i)(?:Union[uvg, nbu])[:\s]*(?:Union[chf, fr]\.?)?\s*([0-9]{1,6}[.,]\d{2})',
+                'ktg': r'(?i)(?:Union[ktg, ijm])[:\s]*(?:Union[chf, fr]\.?)?\s*([0-9]{1,6}[.,]\d{2})'
             }
 
             for contrib_type, pattern in patterns.items():

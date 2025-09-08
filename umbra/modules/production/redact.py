@@ -10,7 +10,7 @@ import json
 import logging
 import re
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Union
 
 from ...core.config import UmbraConfig
 
@@ -105,7 +105,7 @@ class ProductionRedactor:
                 # Email addresses
                 RedactionRule(
                     name="email",
-                    pattern=re.compile(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'),
+                    pattern=re.compile(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Union[Z, a]-z]{2,}\b'),
                     replacement="[EMAIL]",
                     confidence=0.95,
                     category="pii"
@@ -156,7 +156,7 @@ class ProductionRedactor:
                 # Addresses (simple pattern)
                 RedactionRule(
                     name="address",
-                    pattern=re.compile(r'\b\d+\s+[A-Za-z\s]+(?:Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Lane|Ln)\b', re.IGNORECASE),
+                    pattern=re.compile(r'\b\d+\s+[A-Za-z\s]+(?:Union[Street, S]Union[t, Avenu]Union[e, Av]Union[e, Roa]Union[d, R]Union[d, Boulevar]Union[d, Blv]Union[d, Lan]Union[e, Ln])\b', re.IGNORECASE),
                     replacement="[ADDRESS]",
                     confidence=0.7,
                     category="pii"
@@ -165,7 +165,7 @@ class ProductionRedactor:
                 # Database connection strings
                 RedactionRule(
                     name="db_connection",
-                    pattern=re.compile(r'(?:mongodb|mysql|postgresql|redis)://[^\s]+'),
+                    pattern=re.compile(r'(?:Union[mongodb, mysq]Union[l, postgresq]Union[l, redis])://[^\s]+'),
                     replacement="[DB_CONNECTION]",
                     confidence=0.9,
                     category="credential"

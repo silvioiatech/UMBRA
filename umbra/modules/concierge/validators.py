@@ -16,7 +16,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional, Union
 
 
 class ValidatorType(Enum):
@@ -31,8 +31,8 @@ class ValidationResult:
     validator_name: str
     success: bool
     message: str
-    details: str | None = None
-    return_code: int | None = None
+    details: Optional[str] = None
+    return_code: Optional[int] = None
     execution_time: float = 0.0
 
 @dataclass
@@ -41,8 +41,8 @@ class ValidatorRule:
     name: str
     description: str
     validator_type: ValidatorType
-    command: str | None = None
-    function: Callable | None = None
+    command: Optional[str] = None
+    function: Optional[Callable] = None
     file_patterns: list[str] | None = None
     required: bool = True
     timeout: int = 30

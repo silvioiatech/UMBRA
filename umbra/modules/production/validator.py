@@ -9,7 +9,7 @@ import json
 import logging
 import re
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional, Union
 
 from ...core.config import UmbraConfig
 from .n8n_client import N8nClient
@@ -22,8 +22,8 @@ class ValidationIssue:
     level: str  # "error", "warning", "info"
     category: str  # "schema", "logic", "security", "performance"
     message: str
-    location: str | None = None
-    suggestion: str | None = None
+    location: Optional[str] = None
+    suggestion: Optional[str] = None
 
 @dataclass
 class ValidationResult:

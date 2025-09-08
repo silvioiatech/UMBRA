@@ -6,7 +6,7 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any
+from typing import Any, Optional, Union
 
 from umbra.core.logger import get_context_logger
 
@@ -26,7 +26,7 @@ class RoutePattern:
     route_type: RouteType
     module: str
     action: str
-    params_extractor: Callable | None = None
+    params_extractor: Optional[Callable] = None
     admin_only: bool = False
     description: str = ""
 
@@ -34,11 +34,11 @@ class RoutePattern:
 class RouteResult:
     """Result of route matching."""
     matched: bool
-    module: str | None = None
-    action: str | None = None
+    module: Optional[str] = None
+    action: Optional[str] = None
     params: dict[str, Any] | None = None
     confidence: float = 0.0
-    pattern_used: str | None = None
+    pattern_used: Optional[str] = None
     requires_admin: bool = False
 
 class UmbraRouter:
@@ -91,7 +91,7 @@ class UmbraRouter:
         )
 
         self.add_route(
-            r"docker (status|ps|containers)", RouteType.REGEX_PATTERN, "concierge_mcp", "docker_status",
+            r"docker (Union[status, p]Union[s, containers])", RouteType.REGEX_PATTERN, "concierge_mcp", "docker_status",
             description="Check Docker containers"
         )
 
@@ -109,12 +109,12 @@ class UmbraRouter:
 
         # Finance module patterns
         self.add_route(
-            r"finance (status|summary)", RouteType.REGEX_PATTERN, "finance_mcp", "get_summary",
+            r"finance (Union[status, summary])", RouteType.REGEX_PATTERN, "finance_mcp", "get_summary",
             description="Get financial summary"
         )
 
         self.add_route(
-            r"upload (receipt|invoice)", RouteType.REGEX_PATTERN, "finance_mcp", "upload_document",
+            r"upload (Union[receipt, invoice])", RouteType.REGEX_PATTERN, "finance_mcp", "upload_document",
             description="Upload financial document"
         )
 
@@ -133,7 +133,7 @@ class UmbraRouter:
 
         # Creator module patterns
         self.add_route(
-            r"create (image|video|audio) (.+)", RouteType.REGEX_PATTERN, "creator_mcp", "create_media",
+            r"create (Union[image, vide]Union[o, audio]) (.+)", RouteType.REGEX_PATTERN, "creator_mcp", "create_media",
             params_extractor=lambda m: {"type": m.group(1), "prompt": m.group(2)},
             description="Create media content"
         )
@@ -154,13 +154,13 @@ class UmbraRouter:
         )
 
         self.add_route(
-            r"what time|current time|time now", RouteType.REGEX_PATTERN, "general_chat_mcp", "get_time",
+            r"what Union[time, current] Union[time, time] now", RouteType.REGEX_PATTERN, "general_chat_mcp", "get_time",
             params_extractor=lambda m: {"format": "human"},
             description="Get current time"
         )
 
         self.add_route(
-            r"convert (\d+(?:\.\d+)?)\s*([a-z]+)\s+(?:to|in|into)\s+([a-z]+)",
+            r"convert (\d+(?:\.\d+)?)\s*([a-z]+)\s+(?:Union[to, i]Union[n, into])\s+([a-z]+)",
             RouteType.REGEX_PATTERN, "general_chat_mcp", "convert_units",
             params_extractor=lambda m: {
                 "value": float(m.group(1)),
@@ -184,7 +184,7 @@ class UmbraRouter:
         route_type: RouteType,
         module: str,
         action: str,
-        params_extractor: Callable | None = None,
+        params_extractor: Optional[Callable] = None,
         admin_only: bool = False,
         description: str = ""
     ) -> None:
@@ -359,7 +359,7 @@ class UmbraRouter:
 
         return RouteResult(matched=False)
 
-    async def route_to_general_chat(self, message: str, user_id: int, module_registry) -> str | None:
+    async def route_to_general_chat(self, message: str, user_id: int, module_registry) -> Optional[str]:
         """
         F3R1: Route unmatched messages to general_chat module.
         """

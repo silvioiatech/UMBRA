@@ -7,7 +7,7 @@ import json
 import logging
 import re
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional, Union
 
 from ...core.config import UmbraConfig
 
@@ -27,8 +27,8 @@ class VersionInfo:
     major: int
     minor: int
     patch: int
-    pre_release: str | None
-    build: str | None
+    pre_release: Optional[str]
+    build: Optional[str]
     major_jump: bool = False
     minor_jump: bool = False
     patch_jump: bool = False
@@ -150,7 +150,7 @@ class DockerRegistryHelper:
             self.logger.error(f"Error getting remote image info for {repository}:{tag}: {e}")
             return None
 
-    async def _get_image_digest(self, image_name: str) -> str | None:
+    async def _get_image_digest(self, image_name: str) -> Optional[str]:
         """Get the digest of a local image."""
         try:
             cmd = [
@@ -234,7 +234,7 @@ class DockerRegistryHelper:
             self.logger.error(f"Error getting available tags for {repository}: {e}")
             return []
 
-    async def parse_version_info(self, tag: str, repository: str) -> VersionInfo | None:
+    async def parse_version_info(self, tag: str, repository: str) -> Optional[VersionInfo]:
         """Parse version information from a tag."""
         try:
             # Try each version pattern
@@ -286,7 +286,7 @@ class DockerRegistryHelper:
             self.logger.debug(f"Error parsing version from tag {tag}: {e}")
             return None
 
-    async def compare_versions(self, current_tag: str, target_tag: str, repository: str) -> VersionInfo | None:
+    async def compare_versions(self, current_tag: str, target_tag: str, repository: str) -> Optional[VersionInfo]:
         """Compare two versions and return comparison info."""
         try:
             current_version = await self.parse_version_info(current_tag, repository)
@@ -320,7 +320,7 @@ class DockerRegistryHelper:
             self.logger.error(f"Error comparing versions {current_tag} vs {target_tag}: {e}")
             return None
 
-    async def get_release_info(self, repository: str, tag: str) -> tuple[str | None, str | None]:
+    async def get_release_info(self, repository: str, tag: str) -> tuple[Optional[str], Optional[str]]:
         """Get release notes and changelog URL for a version."""
         try:
             # This is a placeholder implementation
@@ -362,7 +362,7 @@ class DockerRegistryHelper:
             self.logger.debug(f"Error getting release info for {repository}:{tag}: {e}")
             return None, None
 
-    async def _run_docker_command(self, cmd: list[str], timeout: int | None = None) -> str | None:
+    async def _run_docker_command(self, cmd: list[str], timeout: Optional[int] = None) -> Optional[str]:
         """Run a docker command and return the output."""
         try:
             timeout = timeout or self.timeout

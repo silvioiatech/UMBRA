@@ -6,7 +6,7 @@ import importlib
 import inspect
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional, Union
 
 from ..core.logger import get_context_logger, set_request_context
 
@@ -27,9 +27,9 @@ class ModuleInfo:
     class_name: str
     module_path: str
     capabilities: list[ModuleCapability]
-    instance: Any | None = None
+    instance: Optional[Any] = None
     available: bool = True
-    error: str | None = None
+    error: Optional[str] = None
 
 class ModuleRegistry:
     """
@@ -294,7 +294,7 @@ class ModuleRegistry:
             if info.available
         ]
 
-    def get_module_info(self, module_name: str) -> ModuleInfo | None:
+    def get_module_info(self, module_name: str) -> Optional[ModuleInfo]:
         """Get information about a specific module."""
         return self.modules.get(module_name)
 

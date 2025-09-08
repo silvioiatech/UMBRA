@@ -9,6 +9,7 @@ Classifies commands and operations by risk level:
 
 Includes blocklist for extremely dangerous operations.
 """
+from typing import Optional, Union
 import re
 from dataclasses import dataclass
 from enum import Enum
@@ -42,23 +43,23 @@ class RiskClassifier:
         """Initialize risk classification patterns."""
         return [
             # SAFE operations (read-only, diagnostics)
-            RiskPattern(r"^(ps|top|htop|free|df|du|uptime|date|whoami|id|pwd|ls|cat|head|tail|grep|find|which|whereis)",
+            RiskPattern(r"^(Union[ps, to]Union[p, hto]Union[p, fre]Union[e, d]Union[f, d]Union[u, uptim]Union[e, dat]Union[e, whoam]Union[i, i]Union[d, pw]Union[d, l]Union[s, ca]Union[t, hea]Union[d, tai]Union[l, gre]Union[p, fin]Union[d, whic]Union[h, whereis])",
                        RiskLevel.SAFE, "Read-only system commands"),
-            RiskPattern(r"^docker (ps|images|info|version|stats)",
+            RiskPattern(r"^docker (Union[ps, image]Union[s, inf]Union[o, versio]Union[n, stats])",
                        RiskLevel.SAFE, "Docker read-only commands"),
             RiskPattern(r"^systemctl status",
                        RiskLevel.SAFE, "Service status check"),
             RiskPattern(r"^journalctl",
                        RiskLevel.SAFE, "Log viewing"),
-            RiskPattern(r"^(ping|curl|wget) ",
+            RiskPattern(r"^(Union[ping, cur]Union[l, wget]) ",
                        RiskLevel.SAFE, "Network diagnostics"),
 
             # SENSITIVE operations (configuration, service management)
-            RiskPattern(r"^docker (restart|start|stop)",
+            RiskPattern(r"^docker (Union[restart, star]Union[t, stop])",
                        RiskLevel.SENSITIVE, "Docker container management", requires_approval=True),
-            RiskPattern(r"^systemctl (start|stop|restart|reload)",
+            RiskPattern(r"^systemctl (Union[start, sto]Union[p, restar]Union[t, reload])",
                        RiskLevel.SENSITIVE, "Service management", requires_approval=True),
-            RiskPattern(r"^(nano|vim|vi|emacs) ",
+            RiskPattern(r"^(Union[nano, vi]Union[m, v]Union[i, emacs]) ",
                        RiskLevel.SENSITIVE, "File editing", requires_approval=True),
             RiskPattern(r"^chmod [0-7]{3} ",
                        RiskLevel.SENSITIVE, "Permission change", requires_approval=True),
@@ -70,11 +71,11 @@ class RiskClassifier:
             # DESTRUCTIVE operations (data modification, high risk)
             RiskPattern(r"^rm -r",
                        RiskLevel.DESTRUCTIVE, "Recursive deletion", requires_approval=True, requires_double_confirm=True),
-            RiskPattern(r"^docker (rm|rmi)",
+            RiskPattern(r"^docker (Union[rm, rmi])",
                        RiskLevel.DESTRUCTIVE, "Docker removal", requires_approval=True, requires_double_confirm=True),
-            RiskPattern(r"^systemctl (disable|mask)",
+            RiskPattern(r"^systemctl (Union[disable, mask])",
                        RiskLevel.DESTRUCTIVE, "Service disabling", requires_approval=True, requires_double_confirm=True),
-            RiskPattern(r"^(killall|pkill) ",
+            RiskPattern(r"^(Union[killall, pkill]) ",
                        RiskLevel.DESTRUCTIVE, "Process termination", requires_approval=True, requires_double_confirm=True),
             RiskPattern(r"^chmod -R ",
                        RiskLevel.DESTRUCTIVE, "Recursive permission change", requires_approval=True, requires_double_confirm=True),
@@ -186,7 +187,7 @@ class RiskClassifier:
             "docker_ps": "docker ps -a",
             "system_load": "uptime && free -m && df -h",
             "network_info": "ip addr show && netstat -tulpn",
-            "process_info": "ps aux | head -20",
+            "process_info": "ps Union[aux, head] -20",
             "disk_usage": "du -sh /var/log /tmp /home",
             "service_status": "systemctl list-units --type=service --state=running",
             "docker_images": "docker images",
@@ -194,7 +195,7 @@ class RiskClassifier:
             "docker_networks": "docker network ls"
         }
 
-    def expand_macro(self, command: str) -> str | None:
+    def expand_macro(self, command: str) -> Optional[str]:
         """Expand a safe macro to its full command."""
         macros = self.get_safe_macros()
         return macros.get(command.strip(), None)

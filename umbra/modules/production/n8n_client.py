@@ -8,7 +8,7 @@ workflow management, execution, and API communication.
 import asyncio
 import logging
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional, Union
 from urllib.parse import urljoin
 
 import aiohttp
@@ -20,9 +20,9 @@ logger = logging.getLogger(__name__)
 @dataclass
 class N8nCredentials:
     """N8n authentication credentials"""
-    api_key: str | None = None
-    username: str | None = None
-    password: str | None = None
+    api_key: Optional[str] = None
+    username: Optional[str] = None
+    password: Optional[str] = None
     auth_type: str = "api_key"  # api_key, basic, none
 
 class N8nClient:
@@ -132,7 +132,7 @@ class N8nClient:
         except Exception as e:
             return {"status": "unhealthy", "error": str(e)}
 
-    async def list_workflows(self, query: str | None = None, tag: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
+    async def list_workflows(self, query: Optional[str] = None, tag: Optional[str] = None, limit: int = 50) -> list[dict[str, Any]]:
         """List workflows with optional filtering"""
         params = {"limit": limit}
         if query:
@@ -143,7 +143,7 @@ class N8nClient:
         result = await self._request("GET", self.endpoints["workflows"], params=params)
         return result.get("data", [])
 
-    async def get_workflow(self, workflow_id: str | None = None, workflow_name: str | None = None) -> dict[str, Any]:
+    async def get_workflow(self, workflow_id: Optional[str] = None, workflow_name: Optional[str] = None) -> dict[str, Any]:
         """Get workflow by ID or name"""
         if workflow_id:
             endpoint = f"{self.endpoints['workflows']}/{workflow_id}"
@@ -221,7 +221,7 @@ class N8nClient:
         endpoint = f"{self.endpoints['executions']}/{execution_id}"
         return await self._request("GET", endpoint)
 
-    async def list_executions(self, workflow_id: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
+    async def list_executions(self, workflow_id: Optional[str] = None, limit: int = 50) -> list[dict[str, Any]]:
         """List workflow executions"""
         params = {"limit": limit}
         if workflow_id:

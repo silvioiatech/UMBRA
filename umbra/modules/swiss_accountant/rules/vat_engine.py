@@ -7,7 +7,7 @@ import logging
 from datetime import date, datetime
 from decimal import ROUND_HALF_UP, Decimal
 from enum import Enum
-from typing import Any
+from typing import Any, Union
 
 
 class SwissVATRate(Enum):
@@ -311,10 +311,10 @@ class VATEngine:
 
         # Swiss VAT rate patterns
         vat_patterns = [
-            r'(?:MWST|TVA|IVA|VAT)\s*([0-9.,]+)\s*%',
-            r'([0-9.,]+)\s*%\s*(?:MWST|TVA|IVA|VAT)',
-            r'(?:Mehrwertsteuer|Taxe|Imposta)\s*([0-9.,]+)\s*%',
-            r'([0-9.,]+)\s*%\s*(?:Mehrwertsteuer|Taxe|Imposta)'
+            r'(?:Union[MWST, TV]Union[A, IV]Union[A, VAT])\s*([0-9.,]+)\s*%',
+            r'([0-9.,]+)\s*%\s*(?:Union[MWST, TV]Union[A, IV]Union[A, VAT])',
+            r'(?:Union[Mehrwertsteuer, Tax]Union[e, Imposta])\s*([0-9.,]+)\s*%',
+            r'([0-9.,]+)\s*%\s*(?:Union[Mehrwertsteuer, Tax]Union[e, Imposta])'
         ]
 
         for pattern in vat_patterns:

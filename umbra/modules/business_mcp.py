@@ -14,7 +14,7 @@ Key Features:
 """
 import re
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional, Union
 
 from ..core.logger import get_context_logger
 from .business.concierge_client import ConciergeBridge
@@ -48,8 +48,8 @@ class DeletionResult:
     """Result of instance deletion operation."""
     ok: bool
     mode: str
-    audit_id: str | None = None
-    message: str | None = None
+    audit_id: Optional[str] = None
+    message: Optional[str] = None
 
 class BusinessMCP:
     """
@@ -438,7 +438,7 @@ class BusinessMCP:
                 "error": f"Failed to get instance stats: {str(e)}"
             }
 
-    def _validate_client_id(self, client_id: str) -> str | None:
+    def _validate_client_id(self, client_id: str) -> Optional[str]:
         """Validate client ID format."""
         if not client_id:
             return "Client ID is required"
@@ -451,7 +451,7 @@ class BusinessMCP:
 
         return None
 
-    def _validate_port(self, port: int) -> str | None:
+    def _validate_port(self, port: int) -> Optional[str]:
         """Validate port number."""
         start_port, end_port = self.client_port_range
 

@@ -8,7 +8,7 @@ import sys
 import uuid
 from contextvars import ContextVar
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Optional, Union
 
 # Context variables for tracking request context
 request_id_context: ContextVar[str] = ContextVar('request_id', default='')
@@ -60,7 +60,7 @@ class JSONFormatter(logging.Formatter):
 
         return json.dumps(log_entry, ensure_ascii=False, separators=(',', ':'))
 
-def setup_logging(level: str = "INFO", log_file: str | None = None) -> None:
+def setup_logging(level: str = "INFO", log_file: Optional[str] = None) -> None:
     """Setup structured JSON logging configuration for production."""
 
     # Convert string level to logging constant
@@ -109,8 +109,8 @@ def get_logger(name: str) -> logging.Logger:
     return logging.getLogger(name)
 
 # Context management utilities
-def set_request_context(request_id: str | None = None, user_id: int | None = None,
-                       module: str | None = None, action: str | None = None) -> str:
+def set_request_context(request_id: Optional[str] = None, user_id: Optional[int] = None,
+                       module: Optional[str] = None, action: Optional[str] = None) -> str:
     """Set request context for logging. Returns the request_id."""
     if request_id is None:
         request_id = str(uuid.uuid4())
@@ -202,9 +202,9 @@ def sanitize_log_data(data: str) -> str:
     return sanitized
 
 def log_api_request(logger: logging.Logger, method: str, url: str,
-                   status_code: int | None = None,
-                   duration_ms: float | None = None,
-                   error: str | None = None):
+                   status_code: Optional[int] = None,
+                   duration_ms: Optional[float] = None,
+                   error: Optional[str] = None):
     """Log API request with structured data."""
     log_data = {
         "event": "api_request",

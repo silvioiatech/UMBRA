@@ -7,7 +7,7 @@ with multi-LLM routing, sticky notes, and comprehensive workflow management.
 
 import logging
 from dataclasses import asdict, dataclass
-from typing import Any
+from typing import Any, Optional, Union
 
 from ..ai.agent import UmbraAIAgent
 from ..core.config import UmbraConfig
@@ -62,7 +62,7 @@ class ProductionCapabilities:
 class ProductionModule:
     """Production MCP Module for n8n workflow management"""
 
-    def __init__(self, ai_agent: UmbraAIAgent, config: UmbraConfig, r2_client: R2Client | None = None):
+    def __init__(self, ai_agent: UmbraAIAgent, config: UmbraConfig, r2_client: Optional[R2Client] = None):
         self.ai_agent = ai_agent
         self.config = config
         self.r2_client = r2_client

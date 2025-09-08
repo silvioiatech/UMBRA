@@ -8,7 +8,7 @@ that provide context and explanations without modifying workflow structure.
 import logging
 import time
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional, Union
 
 from ...ai.agent import UmbraAIAgent
 from ...core.config import UmbraConfig
@@ -30,7 +30,7 @@ class StickyNote:
 @dataclass
 class StickyNotesResult:
     """Result of sticky notes generation"""
-    workflow_id: str | None
+    workflow_id: Optional[str]
     notes_count: int
     notes: list[StickyNote]
     workflow_summary: str
@@ -50,7 +50,7 @@ class StickyNotesManager:
 
         logger.info("Sticky notes manager initialized")
 
-    async def generate_sticky_notes(self, workflow_id: str | None = None, workflow_json: dict[str, Any] | None = None) -> dict[str, Any]:
+    async def generate_sticky_notes(self, workflow_id: Optional[str] = None, workflow_json: dict[str, Any] | None = None) -> dict[str, Any]:
         """Generate sticky notes for workflow"""
         try:
             start_time = time.time()
@@ -268,7 +268,7 @@ class StickyNotesManager:
 
         return any(ctype in node_type for ctype in complex_types)
 
-    async def _generate_node_explanation(self, node: dict[str, Any]) -> StickyNote | None:
+    async def _generate_node_explanation(self, node: dict[str, Any]) -> Optional[StickyNote]:
         """Generate explanation note for complex node"""
         node_id = node.get("id", "unknown")
         node_type = node.get("type", "unknown")
@@ -342,7 +342,7 @@ class StickyNotesManager:
 
         return notes
 
-    def _generate_best_practice_note(self, node: dict[str, Any]) -> StickyNote | None:
+    def _generate_best_practice_note(self, node: dict[str, Any]) -> Optional[StickyNote]:
         """Generate best practice note for node"""
         node_id = node.get("id", "unknown")
         node_type = node.get("type", "").lower()
@@ -421,7 +421,7 @@ class StickyNotesManager:
 
         return notes
 
-    def _generate_trigger_analysis_note(self, trigger_nodes: list[dict[str, Any]]) -> StickyNote | None:
+    def _generate_trigger_analysis_note(self, trigger_nodes: list[dict[str, Any]]) -> Optional[StickyNote]:
         """Generate note analyzing workflow triggers"""
         if not trigger_nodes:
             return None
@@ -451,7 +451,7 @@ class StickyNotesManager:
             created_at=time.time()
         )
 
-    def _generate_security_considerations_note(self, workflow: dict[str, Any]) -> StickyNote | None:
+    def _generate_security_considerations_note(self, workflow: dict[str, Any]) -> Optional[StickyNote]:
         """Generate security considerations note"""
         nodes = workflow.get("nodes", [])
 

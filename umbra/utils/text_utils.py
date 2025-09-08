@@ -4,6 +4,7 @@ Text utilities for command processing and suggestion engine.
 Provides Levenshtein distance calculation and text normalization
 for near-miss command suggestions.
 """
+from typing import Optional, Union
 
 
 
@@ -129,7 +130,7 @@ def get_available_commands_from_registry() -> list[str]:
         ]
 
 
-def suggest_command(input_command: str) -> str | None:
+def suggest_command(input_command: str) -> Optional[str]:
     """
     Suggest a similar command for a given input.
 
@@ -177,7 +178,7 @@ class TextProcessor:
         return find_similar_commands(input_command, available_commands, max_distance, min_length)
 
     @staticmethod
-    def suggest_command(input_command: str) -> str | None:
+    def suggest_command(input_command: str) -> Optional[str]:
         """Suggest a similar command for a given input."""
         return suggest_command(input_command)
 

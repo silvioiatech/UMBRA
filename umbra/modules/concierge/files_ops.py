@@ -17,7 +17,7 @@ import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional, Union
 
 
 @dataclass
@@ -40,7 +40,7 @@ class FileManifest:
     chunks: list[dict[str, Any]]
     file_sha256: str
     created_at: float
-    compression: str | None = None
+    compression: Optional[str] = None
     metadata: dict[str, Any] | None = None
 
 @dataclass
@@ -53,7 +53,7 @@ class TransferResult:
     chunks_transferred: int
     transfer_time: float
     integrity_verified: bool
-    error: str | None = None
+    error: Optional[str] = None
 
 class FileOps:
     """Secure file operations with chunking and integrity verification."""
@@ -239,9 +239,9 @@ class FileOps:
         manifest: FileManifest,
         destination: str,
         overwrite: bool = False,
-        mode: int | None = None,
-        owner: str | None = None,
-        group: str | None = None
+        mode: Optional[int] = None,
+        owner: Optional[str] = None,
+        group: Optional[str] = None
     ) -> tuple[bool, TransferResult, str]:
         """
         Import file with atomic writes and integrity verification.
@@ -380,7 +380,7 @@ class FileOps:
 
             return False, result, f"Import failed: {str(e)}"
 
-    def get_chunk_data(self, operation_id: str, chunk_id: int) -> bytes | None:
+    def get_chunk_data(self, operation_id: str, chunk_id: int) -> Optional[bytes]:
         """Get data for a specific chunk."""
         chunk_path = self.temp_dir / f"{operation_id}_chunk_{chunk_id}"
 

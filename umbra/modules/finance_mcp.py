@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
 from enum import Enum
-from typing import Any
+from typing import Any, Optional, Union
 
 from ..core.envelope import InternalEnvelope
 from ..core.module_base import ModuleBase
@@ -208,7 +208,7 @@ class FinanceMCP(ModuleBase):
 
         return handlers
 
-    async def process_envelope(self, envelope: InternalEnvelope) -> str | None:
+    async def process_envelope(self, envelope: InternalEnvelope) -> Optional[str]:
         """Process envelope for Finance operations."""
         action = envelope.action.lower()
         data = envelope.data

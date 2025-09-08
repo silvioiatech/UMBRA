@@ -4,7 +4,7 @@ Features: F2 functionality + OpenRouter AI + built-in tools + module discovery +
 """
 import asyncio
 import time
-from typing import Any
+from typing import Any, Optional, Union
 
 from telegram import Update
 from telegram.error import BadRequest, Forbidden
@@ -63,7 +63,7 @@ class UmbraBot:
         self.router = UmbraRouter()
 
         # Telegram application
-        self.application: Application | None = None
+        self.application: Optional[Application] = None
         self._shutdown_event = asyncio.Event()
 
         # Track start time for uptime
@@ -721,7 +721,7 @@ class UmbraBot:
             )
             return f"❌ **Execution Failed**: {redact_sensitive_data(str(e))}"
 
-    async def _handle_error(self, update: Update | None, context: ContextTypes.DEFAULT_TYPE) -> None:
+    async def _handle_error(self, update: Optional[Update], context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle errors in bot operations."""
 
         error = context.error

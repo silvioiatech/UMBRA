@@ -8,7 +8,7 @@ for workflow building based on plan requirements.
 import logging
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, Optional, Union
 
 from ...core.config import UmbraConfig
 from .n8n_client import N8nClient
@@ -25,7 +25,7 @@ class NodeInfo:
     parameters: list[dict[str, Any]]
     inputs: list[str]
     outputs: list[str]
-    credentials: str | None = None
+    credentials: Optional[str] = None
     webhooks: bool = False
     triggers: bool = False
 
@@ -122,7 +122,7 @@ class CatalogManager:
 
         return default_whitelist
 
-    async def scrape_catalog(self, steps: list[dict[str, Any]], k: int = 7, budget_tokens: int | None = None) -> dict[str, Any]:
+    async def scrape_catalog(self, steps: list[dict[str, Any]], k: int = 7, budget_tokens: Optional[int] = None) -> dict[str, Any]:
         """Scrape and filter node catalog based on workflow steps"""
         try:
             # Get cached catalog or fetch fresh
@@ -206,7 +206,7 @@ class CatalogManager:
         logger.info(f"Processed {len(catalog)} whitelisted nodes")
         return catalog
 
-    def _extract_node_info(self, node_data: dict[str, Any], node_id: str | None = None) -> NodeInfo | None:
+    def _extract_node_info(self, node_data: dict[str, Any], node_id: Optional[str] = None) -> Optional[NodeInfo]:
         """Extract NodeInfo from raw n8n node data"""
         try:
             # Extract basic info
@@ -398,7 +398,7 @@ class CatalogManager:
 
         return reduced_catalogs
 
-    def _get_cache_age(self) -> int | None:
+    def _get_cache_age(self) -> Optional[int]:
         """Get age of cached catalog in seconds"""
         cache_key = "full_catalog"
         if cache_key in self.cache:

@@ -1,6 +1,6 @@
 """Fixed conversation management for Umbra bot."""
 import logging
-from typing import Any
+from typing import Any, Optional, Union
 
 from .database import DatabaseManager
 
@@ -14,7 +14,7 @@ class ConversationManager:
         self._conversation_context: dict[int, list[dict[str, Any]]] = {}
 
     def add_message(self, user_id: int, message: str, response: str,
-                  module: str | None = None) -> None:
+                  module: Optional[str] = None) -> None:
         """Add a message-response pair to the conversation."""
         # Store in database
         self.db.add_conversation(user_id, message, response, module)

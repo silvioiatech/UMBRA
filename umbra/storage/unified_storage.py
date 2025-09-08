@@ -6,7 +6,7 @@ Provides a migration path from SQLite to R2 storage.
 import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any, Union
+from typing import Any, Union, Optional
 
 from ..core.logger import get_logger
 from .database import DatabaseManager
@@ -24,7 +24,7 @@ class StorageRecord:
     data: dict[str, Any]
     timestamp: datetime
     storage_backend: str  # 'sqlite' or 'r2'
-    storage_key: str | None = None  # R2 key or SQLite row identifier
+    storage_key: Optional[str] = None  # R2 key or SQLite row identifier
 
 
 class UnifiedStorageManager:
@@ -299,7 +299,7 @@ class UnifiedStorageManager:
                 self.logger.error(f"Failed to search SQLite data: {e}")
                 return []
 
-    async def generate_presigned_url(self, storage_key: str, expiration: int = 3600) -> str | None:
+    async def generate_presigned_url(self, storage_key: str, expiration: int = 3600) -> Optional[str]:
         """Generate presigned URL for R2 objects."""
         if self.use_r2:
             try:
@@ -362,7 +362,7 @@ class UnifiedStorageManager:
 
 
 # Global unified storage manager instance
-_storage_manager: UnifiedStorageManager | None = None
+_storage_manager: Optional[UnifiedStorageManager] = None
 
 
 async def get_storage_manager() -> UnifiedStorageManager:

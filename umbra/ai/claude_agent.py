@@ -2,6 +2,7 @@
 Claude Desktop-style AI Agent
 Natural conversation that intelligently uses MCP modules
 """
+from typing import Optional, Union
 import logging
 import re
 
@@ -111,7 +112,7 @@ User is {user_name}."""
             return await self._process_with_patterns(message, user_name, modules, context, update)
 
     async def _execute_mentioned_tasks(self, ai_response: str, original_message: str,
-                                      modules: dict, context=None, update=None) -> str | None:
+                                      modules: dict, context=None, update=None) -> Optional[str]:
         """Execute tasks mentioned in AI response."""
         try:
             response_lower = ai_response.lower()
@@ -158,7 +159,7 @@ User is {user_name}."""
             self.logger.error(f"Task execution error: {e}")
             return None
 
-    async def _execute_vps_task(self, module, message: str) -> str | None:
+    async def _execute_vps_task(self, module, message: str) -> Optional[str]:
         """Execute VPS management task."""
         try:
             concierge = module['module']
@@ -185,7 +186,7 @@ User is {user_name}."""
             self.logger.error(f"VPS task error: {e}")
             return f"❌ VPS task failed: {str(e)[:100]}"
 
-    async def _execute_finance_task(self, module, message: str) -> str | None:
+    async def _execute_finance_task(self, module, message: str) -> Optional[str]:
         """Execute finance task."""
         try:
             finance = module['module']
@@ -217,7 +218,7 @@ User is {user_name}."""
             self.logger.error(f"Finance task error: {e}")
             return f"❌ Finance task failed: {str(e)[:100]}"
 
-    async def _execute_business_task(self, module, message: str) -> str | None:
+    async def _execute_business_task(self, module, message: str) -> Optional[str]:
         """Execute business task."""
         try:
             business = module['module']
@@ -243,7 +244,7 @@ User is {user_name}."""
             self.logger.error(f"Business task error: {e}")
             return f"❌ Business task failed: {str(e)[:100]}"
 
-    async def _execute_workflow_task(self, module, message: str) -> str | None:
+    async def _execute_workflow_task(self, module, message: str) -> Optional[str]:
         """Execute n8n workflow task."""
         try:
             production = module['module']
@@ -275,7 +276,7 @@ User is {user_name}."""
             self.logger.error(f"Workflow task error: {e}")
             return f"❌ Workflow task failed: {str(e)[:100]}"
 
-    async def _execute_creator_task(self, module, message: str) -> str | None:
+    async def _execute_creator_task(self, module, message: str) -> Optional[str]:
         """Execute content creation task."""
         try:
             creator = module['module']

@@ -11,7 +11,7 @@ Complete VPS management with:
 """
 import time
 from dataclasses import asdict
-from typing import Any
+from typing import Any, Optional, Union
 
 from ..core.approvals import ApprovalManager
 from ..core.logger import get_context_logger
@@ -1370,7 +1370,7 @@ class ConciergeMCP:
         params: dict[str, Any],
         status: str,
         duration_ms: float,
-        error_message: str | None = None
+        error_message: Optional[str] = None
     ):
         """Audit action execution."""
         if not self.audit_enabled:

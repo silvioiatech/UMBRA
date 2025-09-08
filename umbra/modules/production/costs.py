@@ -11,7 +11,7 @@ import os
 import time
 from dataclasses import asdict, dataclass
 from datetime import datetime
-from typing import Any
+from typing import Any, Optional, Union
 
 from ...core.config import UmbraConfig
 
@@ -27,7 +27,7 @@ class CostEntry:
     estimated_cost_chf: float
     operation: str  # specific operation performed
     success: bool
-    execution_time_ms: int | None = None
+    execution_time_ms: Optional[int] = None
 
 @dataclass
 class BudgetLimit:
@@ -149,7 +149,7 @@ class CostManager:
 
         self.budget_limits = default_limits
 
-    async def log_step_cost(self, stage: str, tokens_used: int, model: str = "unknown", operation: str = "unknown", success: bool = True, execution_time_ms: int | None = None) -> dict[str, Any]:
+    async def log_step_cost(self, stage: str, tokens_used: int, model: str = "unknown", operation: str = "unknown", success: bool = True, execution_time_ms: Optional[int] = None) -> dict[str, Any]:
         """Log cost for a workflow creation step"""
         if not self.tracking_enabled:
             return {"cost_logged": False, "reason": "tracking_disabled"}

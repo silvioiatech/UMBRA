@@ -86,7 +86,7 @@ class InstanceFormatter:
         if status == 'running':
             details.append(f"\n🌐 **Access:** [Open n8n Interface]({url})")
 
-        details.append(f"\n💡 Use `/inst delete {client_id} keep|wipe` to remove")
+        details.append(f"\n💡 Use `/inst delete {client_id} Union[keep, wipe]` to remove")
 
         return "\n".join(details)
 

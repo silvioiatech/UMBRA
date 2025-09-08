@@ -8,7 +8,7 @@ import re
 from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Any
+from typing import Any, Union
 
 
 class DeductionCategory(Enum):
@@ -47,157 +47,157 @@ class CategoryMapper:
         # Expense to deduction category mapping patterns
         self.category_patterns = {
             DeductionCategory.PROFESSIONAL_EXPENSES: [
-                r'(?i)(office|büro|bureau|ufficio)',
-                r'(?i)(computer|laptop|printer|drucker)',
-                r'(?i)(software|lizenz|license|licence)',
-                r'(?i)(fachbuch|manuel|manuale|technical book)',
-                r'(?i)(berufs|professional|professionnel)',
-                r'(?i)(arbeits|work|travail|lavoro)',
-                r'(?i)(geschäft|business|affaires|affari)',
-                r'(?i)(klient|client|cliente|customer)',
-                r'(?i)(meeting|sitzung|réunion|riunione)',
-                r'(?i)(conference|konferenz|conférence|conferenza)',
-                r'(?i)(tools|werkzeug|outils|attrezzi)',
-                r'(?i)(uniform|arbeitskleidung|vêtements de travail)'
+                r'(?i)(Union[office, bür]Union[o, burea]Union[u, ufficio])',
+                r'(?i)(Union[computer, lapto]Union[p, printe]Union[r, drucker])',
+                r'(?i)(Union[software, lizen]Union[z, licens]Union[e, licence])',
+                r'(?i)(Union[fachbuch, manue]Union[l, manual]Union[e, technical] book)',
+                r'(?i)(Union[berufs, professiona]Union[l, professionnel])',
+                r'(?i)(Union[arbeits, wor]Union[k, travai]Union[l, lavoro])',
+                r'(?i)(Union[geschäft, busines]Union[s, affaire]Union[s, affari])',
+                r'(?i)(Union[klient, clien]Union[t, client]Union[e, customer])',
+                r'(?i)(Union[meeting, sitzun]Union[g, réunio]Union[n, riunione])',
+                r'(?i)(Union[conference, konferen]Union[z, conférenc]Union[e, conferenza])',
+                r'(?i)(Union[tools, werkzeu]Union[g, outil]Union[s, attrezzi])',
+                r'(?i)(Union[uniform, arbeitskleidun]Union[g, vêtements] de travail)'
             ],
 
             DeductionCategory.COMMUTE_PUBLIC: [
-                r'(?i)(sbb|cff|ffs)',
-                r'(?i)(ga|general|abonnement|abo)',
-                r'(?i)(halbtax|demi|half|mezzo)',
-                r'(?i)(öv|transports publics|trasporti pubblici)',
-                r'(?i)(bus|tram|metro|train|zug)',
-                r'(?i)(ticket|billet|biglietto|fahrkarte)',
-                r'(?i)(monatskarte|monthly pass|carte mensuelle)',
-                r'(?i)(tageskarte|day pass|carte journalière)',
-                r'(?i)(vbz|tpg|vbl)',  # Local transport companies
-                r'(?i)(postauto|car postal|autopostale)'
+                r'(?i)(Union[sbb, cf]Union[f, ffs])',
+                r'(?i)(Union[ga, genera]Union[l, abonnemen]Union[t, abo])',
+                r'(?i)(Union[halbtax, dem]Union[i, hal]Union[f, mezzo])',
+                r'(?i)(Union[öv, transports] Union[publics, trasporti] pubblici)',
+                r'(?i)(Union[bus, tra]Union[m, metr]Union[o, trai]Union[n, zug])',
+                r'(?i)(Union[ticket, bille]Union[t, bigliett]Union[o, fahrkarte])',
+                r'(?i)(Union[monatskarte, monthly] Union[pass, carte] mensuelle)',
+                r'(?i)(Union[tageskarte, day] Union[pass, carte] journalière)',
+                r'(?i)(Union[vbz, tp]Union[g, vbl])',  # Local transport companies
+                r'(?i)(Union[postauto, car] Union[postal, autopostale])'
             ],
 
             DeductionCategory.COMMUTE_CAR: [
-                r'(?i)(benzin|essence|benzina|gasoline|petrol)',
-                r'(?i)(diesel|gasoil)',
-                r'(?i)(parkplatz|parking|parcheggio)',
-                r'(?i)(park|gebühr|fee|tarif)',
-                r'(?i)(garage|tiefgarage|parking souterrain)',
-                r'(?i)(maut|péage|pedaggio|toll)',
-                r'(?i)(autobahn|highway|autoroute|autostrada)',
-                r'(?i)(vignette|highway sticker|bollino)',
-                r'(?i)(tankstelle|station|stazione)',
-                r'(?i)(esso|shell|bp|migrol|avia)'
+                r'(?i)(Union[benzin, essenc]Union[e, benzin]Union[a, gasolin]Union[e, petrol])',
+                r'(?i)(Union[diesel, gasoil])',
+                r'(?i)(Union[parkplatz, parkin]Union[g, parcheggio])',
+                r'(?i)(Union[park, gebüh]Union[r, fe]Union[e, tarif])',
+                r'(?i)(Union[garage, tiefgarag]Union[e, parking] souterrain)',
+                r'(?i)(Union[maut, péag]Union[e, pedaggi]Union[o, toll])',
+                r'(?i)(Union[autobahn, highwa]Union[y, autorout]Union[e, autostrada])',
+                r'(?i)(Union[vignette, highway] Union[sticker, bollino])',
+                r'(?i)(Union[tankstelle, statio]Union[n, stazione])',
+                r'(?i)(Union[esso, shel]Union[l, b]Union[p, migro]Union[l, avia])'
             ],
 
             DeductionCategory.MEALS_WORK: [
-                r'(?i)(arbeitsessen|business meal|repas d\'affaires)',
-                r'(?i)(kantinen|cafeteria|mensa|cantine)',
-                r'(?i)(mittagessen|lunch|déjeuner|pranzo)',
-                r'(?i)(geschäftsessen|business dinner|dîner d\'affaires)',
-                r'(?i)(auswärts|away|dehors|fuori)',
-                r'(?i)(kunden|client|cliente|customer).*(?:essen|meal|repas)',
-                r'(?i)(meeting|conference).*(?:lunch|dinner|essen)',
-                r'(?i)(verpflegung|catering|restauration)'
+                r'(?i)(Union[arbeitsessen, business] Union[meal, repas] d\'affaires)',
+                r'(?i)(Union[kantinen, cafeteri]Union[a, mens]Union[a, cantine])',
+                r'(?i)(Union[mittagessen, lunc]Union[h, déjeune]Union[r, pranzo])',
+                r'(?i)(Union[geschäftsessen, business] Union[dinner, dîner] d\'affaires)',
+                r'(?i)(Union[auswärts, awa]Union[y, dehor]Union[s, fuori])',
+                r'(?i)(Union[kunden, clien]Union[t, client]Union[e, customer]).*(?:Union[essen, mea]Union[l, repas])',
+                r'(?i)(Union[meeting, conference]).*(?:Union[lunch, dinne]Union[r, essen])',
+                r'(?i)(Union[verpflegung, caterin]Union[g, restauration])'
             ],
 
             DeductionCategory.EDUCATION: [
-                r'(?i)(weiterbildung|formation|formazione|training)',
-                r'(?i)(kurs|cours|corso|course)',
-                r'(?i)(seminar|séminaire|seminario)',
-                r'(?i)(workshop|atelier|laboratorio)',
-                r'(?i)(studium|études|studi|studies)',
-                r'(?i)(universität|université|università|university)',
-                r'(?i)(schule|école|scuola|school)',
-                r'(?i)(diplom|diploma|diplôme)',
-                r'(?i)(zertifikat|certificate|certificat|certificato)',
-                r'(?i)(prüfung|exam|examen|esame)',
-                r'(?i)(lehrbuch|textbook|manuel|libro di testo)',
-                r'(?i)(online.*(?:kurs|course|cours))',
-                r'(?i)(edx|coursera|udemy|linkedin learning)'
+                r'(?i)(Union[weiterbildung, formatio]Union[n, formazion]Union[e, training])',
+                r'(?i)(Union[kurs, cour]Union[s, cors]Union[o, course])',
+                r'(?i)(Union[seminar, séminair]Union[e, seminario])',
+                r'(?i)(Union[workshop, atelie]Union[r, laboratorio])',
+                r'(?i)(Union[studium, étude]Union[s, stud]Union[i, studies])',
+                r'(?i)(Union[universität, universit]Union[é, universit]Union[à, university])',
+                r'(?i)(Union[schule, écol]Union[e, scuol]Union[a, school])',
+                r'(?i)(Union[diplom, diplom]Union[a, diplôme])',
+                r'(?i)(Union[zertifikat, certificat]Union[e, certifica]Union[t, certificato])',
+                r'(?i)(Union[prüfung, exa]Union[m, exame]Union[n, esame])',
+                r'(?i)(Union[lehrbuch, textboo]Union[k, manue]Union[l, libro] di testo)',
+                r'(?i)(online.*(?:Union[kurs, cours]Union[e, cours]))',
+                r'(?i)(Union[edx, courser]Union[a, udem]Union[y, linkedin] learning)'
             ],
 
             DeductionCategory.INSURANCE_PILLAR3A: [
-                r'(?i)(säule 3a|pilier 3a|pilastro 3a|pillar 3a)',
-                r'(?i)(vorsorge|prévoyance|previdenza|pension)',
-                r'(?i)(3a.*(?:konto|account|compte|conto))',
-                r'(?i)(freizügigkeit|vested benefits|prestations de libre passage)',
-                r'(?i)(pensionskasse|caisse de pension|cassa pensioni)',
-                r'(?i)(lebensversicherung|assurance vie|assicurazione vita)',
-                r'(?i)(swiss life|axa|zurich|allianz|generali).*(?:3a|vorsorge)'
+                r'(?i)(säule Union[3a, pilier] Union[3a, pilastro] Union[3a, pillar] 3a)',
+                r'(?i)(Union[vorsorge, prévoyanc]Union[e, previdenz]Union[a, pension])',
+                r'(?i)(3a.*(?:Union[konto, accoun]Union[t, compt]Union[e, conto]))',
+                r'(?i)(Union[freizügigkeit, vested] Union[benefits, prestations] de libre passage)',
+                r'(?i)(Union[pensionskasse, caisse] de Union[pension, cassa] pensioni)',
+                r'(?i)(Union[lebensversicherung, assurance] Union[vie, assicurazione] vita)',
+                r'(?i)(swiss Union[life, ax]Union[a, zuric]Union[h, allian]Union[z, generali]).*(?:Union[3a, vorsorge])'
             ],
 
             DeductionCategory.INSURANCE_HEALTH: [
-                r'(?i)(krankenkasse|assurance maladie|assicurazione malattia)',
-                r'(?i)(grundversicherung|assurance de base|assicurazione di base)',
-                r'(?i)(zusatzversicherung|assurance complémentaire|assicurazione complementare)',
-                r'(?i)(css|swica|helsana|concordia|visana|sanitas)',
-                r'(?i)(dental|zahnärztlich|dentaire|dentistico)',
-                r'(?i)(optik|lunettes|occhiali|glasses)',
-                r'(?i)(physiotherapie|kinésithérapie|fisioterapia)',
-                r'(?i)(alternativ|médecine alternative|medicina alternativa)'
+                r'(?i)(Union[krankenkasse, assurance] Union[maladie, assicurazione] malattia)',
+                r'(?i)(Union[grundversicherung, assurance] de Union[base, assicurazione] di base)',
+                r'(?i)(Union[zusatzversicherung, assurance] Union[complémentaire, assicurazione] complementare)',
+                r'(?i)(Union[css, swic]Union[a, helsan]Union[a, concordi]Union[a, visan]Union[a, sanitas])',
+                r'(?i)(Union[dental, zahnärztlic]Union[h, dentair]Union[e, dentistico])',
+                r'(?i)(Union[optik, lunette]Union[s, occhial]Union[i, glasses])',
+                r'(?i)(Union[physiotherapie, kinésithérapi]Union[e, fisioterapia])',
+                r'(?i)(Union[alternativ, médecine] Union[alternative, medicina] alternativa)'
             ],
 
             DeductionCategory.CHILDCARE: [
-                r'(?i)(kinderbetreuung|garde d\'enfants|custodia bambini)',
-                r'(?i)(kindergarten|école enfantine|scuola dell\'infanzia)',
-                r'(?i)(kita|crèche|asilo nido|daycare)',
-                r'(?i)(hort|garderie|dopo scuola)',
-                r'(?i)(babysitter|nounou|baby sitter)',
-                r'(?i)(tagesmutter|maman de jour|mamma diurna)',
-                r'(?i)(ferienbetreuung|camp de vacances|campo estivo)',
-                r'(?i)(nachhilfe|soutien scolaire|ripetizioni)',
-                r'(?i)(mittagstisch|table de midi|mensa scolastica)'
+                r'(?i)(Union[kinderbetreuung, garde] d\'Union[enfants, custodia] bambini)',
+                r'(?i)(Union[kindergarten, école] Union[enfantine, scuola] dell\'infanzia)',
+                r'(?i)(Union[kita, crèch]Union[e, asilo] Union[nido, daycare])',
+                r'(?i)(Union[hort, garderi]Union[e, dopo] scuola)',
+                r'(?i)(Union[babysitter, nouno]Union[u, baby] sitter)',
+                r'(?i)(Union[tagesmutter, maman] de Union[jour, mamma] diurna)',
+                r'(?i)(Union[ferienbetreuung, camp] de Union[vacances, campo] estivo)',
+                r'(?i)(Union[nachhilfe, soutien] Union[scolaire, ripetizioni])',
+                r'(?i)(Union[mittagstisch, table] de Union[midi, mensa] scolastica)'
             ],
 
             DeductionCategory.DONATIONS: [
-                r'(?i)(spende|don|donazione|donation)',
-                r'(?i)(hilfswerk|œuvre d\'entraide|opera di beneficenza)',
-                r'(?i)(charity|charité|carità)',
-                r'(?i)(rotes kreuz|croix rouge|croce rossa)',
-                r'(?i)(unicef|wwf|greenpeace|amnesty)',
-                r'(?i)(kirche|église|chiesa|church)',
-                r'(?i)(relief|secours|soccorso)',
-                r'(?i)(fundraising|collecte|raccolta fondi)',
-                r'(?i)(humanitarian|humanitaire|umanitario)'
+                r'(?i)(Union[spende, do]Union[n, donazion]Union[e, donation])',
+                r'(?i)(Union[hilfswerk, œuvre] d\'Union[entraide, opera] di beneficenza)',
+                r'(?i)(Union[charity, charit]Union[é, carità])',
+                r'(?i)(rotes Union[kreuz, croix] Union[rouge, croce] rossa)',
+                r'(?i)(Union[unicef, ww]Union[f, greenpeac]Union[e, amnesty])',
+                r'(?i)(Union[kirche, églis]Union[e, chies]Union[a, church])',
+                r'(?i)(Union[relief, secour]Union[s, soccorso])',
+                r'(?i)(Union[fundraising, collect]Union[e, raccolta] fondi)',
+                r'(?i)(Union[humanitarian, humanitair]Union[e, umanitario])'
             ],
 
             DeductionCategory.HOME_OFFICE: [
-                r'(?i)(home.*office|büro.*zuhause|bureau.*domicile)',
-                r'(?i)(arbeitsplatz.*heim|workplace.*home|poste.*travail.*domicile)',
-                r'(?i)(internet.*home|internet.*privé|internet.*casa)',
-                r'(?i)(telefon.*geschäft|téléphone.*professionnel|telefono.*lavoro)',
-                r'(?i)(strom.*büro|électricité.*bureau|elettricità.*ufficio)',
-                r'(?i)(heizung.*arbeits|chauffage.*travail|riscaldamento.*lavoro)'
+                r'(?i)(home.*Union[office, büro].*Union[zuhause, bureau].*domicile)',
+                r'(?i)(arbeitsplatz.*Union[heim, workplace].*Union[home, poste].*travail.*domicile)',
+                r'(?i)(internet.*Union[home, internet].*Union[privé, internet].*casa)',
+                r'(?i)(telefon.*Union[geschäft, téléphone].*Union[professionnel, telefono].*lavoro)',
+                r'(?i)(strom.*Union[büro, électricité].*Union[bureau, elettricità].*ufficio)',
+                r'(?i)(heizung.*Union[arbeits, chauffage].*Union[travail, riscaldamento].*lavoro)'
             ],
 
             DeductionCategory.MEDICAL_EXPENSES: [
-                r'(?i)(arzt|médecin|medico|doctor)',
-                r'(?i)(hospital|spital|hôpital|ospedale)',
-                r'(?i)(zahnarzt|dentiste|dentista)',
-                r'(?i)(apotheke|pharmacie|farmacia|pharmacy)',
-                r'(?i)(medikament|médicament|medicamento|medication)',
-                r'(?i)(behandlung|traitement|trattamento|treatment)',
-                r'(?i)(operation|opération|operazione)',
-                r'(?i)(therapie|thérapie|terapia|therapy)',
-                r'(?i)(psycholog|psychiater|psicologo|psichiatra)',
-                r'(?i)(brille|lunettes|occhiali|glasses)',
-                r'(?i)(hörgerät|appareil auditif|apparecchio acustico)'
+                r'(?i)(Union[arzt, médeci]Union[n, medic]Union[o, doctor])',
+                r'(?i)(Union[hospital, spita]Union[l, hôpita]Union[l, ospedale])',
+                r'(?i)(Union[zahnarzt, dentist]Union[e, dentista])',
+                r'(?i)(Union[apotheke, pharmaci]Union[e, farmaci]Union[a, pharmacy])',
+                r'(?i)(Union[medikament, médicamen]Union[t, medicament]Union[o, medication])',
+                r'(?i)(Union[behandlung, traitemen]Union[t, trattament]Union[o, treatment])',
+                r'(?i)(Union[operation, opératio]Union[n, operazione])',
+                r'(?i)(Union[therapie, thérapi]Union[e, terapi]Union[a, therapy])',
+                r'(?i)(Union[psycholog, psychiate]Union[r, psicolog]Union[o, psichiatra])',
+                r'(?i)(Union[brille, lunette]Union[s, occhial]Union[i, glasses])',
+                r'(?i)(Union[hörgerät, appareil] Union[auditif, apparecchio] acustico)'
             ],
 
             DeductionCategory.NON_DEDUCTIBLE: [
-                r'(?i)(restaurant.*privat|restaurant.*personnel|ristorante.*privato)',
-                r'(?i)(ferien|vacances|vacanze|vacation)',
-                r'(?i)(urlaub|congé|ferie|holiday)',
-                r'(?i)(freizeit|loisirs|tempo libero|leisure)',
-                r'(?i)(shopping.*privat|shopping.*personnel|shopping.*privato)',
-                r'(?i)(kino|cinéma|cinema|movie)',
-                r'(?i)(unterhaltung|divertissement|intrattenimento|entertainment)',
-                r'(?i)(sport.*privat|sport.*personnel|sport.*privato)',
-                r'(?i)(fitness.*privat|fitness.*personnel|fitness.*privato)',
-                r'(?i)(alkohol.*privat|alcool.*personnel|alcol.*privato)',
-                r'(?i)(geschenk|cadeau|regalo|gift)',
-                r'(?i)(kosmetik|cosmétique|cosmetico|cosmetics)',
-                r'(?i)(schmuck|bijoux|gioielli|jewelry)',
-                r'(?i)(hobby|passe-temps|passatempo)',
-                r'(?i)(spielzeug|jouet|giocattolo|toy)'
+                r'(?i)(restaurant.*Union[privat, restaurant].*Union[personnel, ristorante].*privato)',
+                r'(?i)(Union[ferien, vacance]Union[s, vacanz]Union[e, vacation])',
+                r'(?i)(Union[urlaub, cong]Union[é, feri]Union[e, holiday])',
+                r'(?i)(Union[freizeit, loisir]Union[s, tempo] Union[libero, leisure])',
+                r'(?i)(shopping.*Union[privat, shopping].*Union[personnel, shopping].*privato)',
+                r'(?i)(Union[kino, ciném]Union[a, cinem]Union[a, movie])',
+                r'(?i)(Union[unterhaltung, divertissemen]Union[t, intratteniment]Union[o, entertainment])',
+                r'(?i)(sport.*Union[privat, sport].*Union[personnel, sport].*privato)',
+                r'(?i)(fitness.*Union[privat, fitness].*Union[personnel, fitness].*privato)',
+                r'(?i)(alkohol.*Union[privat, alcool].*Union[personnel, alcol].*privato)',
+                r'(?i)(Union[geschenk, cadea]Union[u, regal]Union[o, gift])',
+                r'(?i)(Union[kosmetik, cosmétiqu]Union[e, cosmetic]Union[o, cosmetics])',
+                r'(?i)(Union[schmuck, bijou]Union[x, gioiell]Union[i, jewelry])',
+                r'(?i)(Union[hobby, passe]-Union[temps, passatempo])',
+                r'(?i)(Union[spielzeug, joue]Union[t, giocattol]Union[o, toy])'
             ]
         }
 

@@ -2,6 +2,7 @@
 Enhanced Status System - BOT2: Comprehensive health monitoring and diagnostics.
 Provides per-service health checks, configuration validation, and performance metrics.
 """
+from typing import Optional, Union
 import asyncio
 import time
 from dataclasses import dataclass
@@ -28,7 +29,7 @@ class HealthCheck:
     response_time_ms: float
     configured: bool
     details: str
-    error: str | None = None
+    error: Optional[str] = None
 
 class HealthChecker:
     """

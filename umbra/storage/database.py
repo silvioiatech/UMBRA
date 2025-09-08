@@ -5,7 +5,7 @@ import sqlite3
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Any, NamedTuple, Optional
+from typing import Any, NamedTuple, Optional, Union
 
 # Global database manager instance
 _db_manager: Optional["DatabaseManager"] = None
@@ -15,35 +15,35 @@ class ConversationMessage(NamedTuple):
     message: str
     response: str
     timestamp: str
-    module: str | None
+    module: Optional[str]
 
 
 class Client(NamedTuple):
     """Represents a client from the database."""
-    id: int | None = None
+    id: Optional[int] = None
     name: str = ""
     company: str = ""
     email: str = ""
     phone: str = ""
     status: str = "active"
     metadata: dict[str, Any] = {}
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
 
 class Workflow(NamedTuple):
     """Represents a workflow from the database."""
-    id: int | None = None
+    id: Optional[int] = None
     name: str = ""
     description: str = ""
-    client_id: int | None = None
+    client_id: Optional[int] = None
     status: str = "pending"
     plan: str = ""
     created_by: str = ""
-    deployed_at: datetime | None = None
+    deployed_at: Optional[datetime] = None
     metadata: dict[str, Any] = {}
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
 class DatabaseManager:
     """Manages SQLite database operations for Umbra bot."""
@@ -159,8 +159,8 @@ class DatabaseManager:
         finally:
             conn.close()
 
-    def add_user(self, user_id: int, username: str | None = None,
-                first_name: str | None = None, last_name: str | None = None):
+    def add_user(self, user_id: int, username: Optional[str] = None,
+                first_name: Optional[str] = None, last_name: Optional[str] = None):
         """Add or update a user in the database."""
         with self.get_connection() as conn:
             conn.execute("""
@@ -170,7 +170,7 @@ class DatabaseManager:
             conn.commit()
 
     def add_conversation(self, user_id: int, message: str, response: str,
-                        module: str | None = None) -> int:
+                        module: Optional[str] = None) -> int:
         """Add a conversation entry."""
         with self.get_connection() as conn:
             cursor = conn.execute("""
@@ -237,7 +237,7 @@ class DatabaseManager:
             """, (user_id, module, key, json.dumps(value) if not isinstance(value, str) else value))
             conn.commit()
 
-    def get_module_data(self, user_id: int, module: str, key: str | None = None) -> Any:
+    def get_module_data(self, user_id: int, module: str, key: Optional[str] = None) -> Any:
         """Get module-specific data for a user."""
         with self.get_connection() as conn:
             if key:
@@ -300,7 +300,7 @@ class DatabaseManager:
                 ))
             return clients
 
-    async def get_client_by_id(self, client_id: int) -> Client | None:
+    async def get_client_by_id(self, client_id: int) -> Optional[Client]:
         """Get a specific client by ID."""
         with self.get_connection() as conn:
             cursor = conn.execute("SELECT * FROM clients WHERE id = ?", (client_id,))

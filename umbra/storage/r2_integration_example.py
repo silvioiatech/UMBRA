@@ -6,7 +6,7 @@ This demonstrates migration from SQLite to R2 storage for the finance module.
 import asyncio
 import json
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Optional, Union
 
 from ..core.logger import get_logger
 from ..storage import StorageRecord, get_storage_manager
@@ -183,7 +183,7 @@ class FinanceR2Integration:
             self.logger.error(f"Failed to search transactions: {e}")
             return []
 
-    async def generate_download_link(self, user_id: str, record_id: str) -> str | None:
+    async def generate_download_link(self, user_id: str, record_id: str) -> Optional[str]:
         """Generate presigned URL for downloading financial data."""
         storage = await self.get_storage()
 

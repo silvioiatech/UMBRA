@@ -156,7 +156,7 @@ class WorkflowPlanner:
             "steps": [
                 {{
                     "id": "step_1",
-                    "type": "trigger|action|condition|transform",
+                    "type": "Union[trigger, actio]Union[n, conditio]Union[n, transform]",
                     "description": "what this step does",
                     "inputs": ["input1", "input2"],
                     "outputs": ["output1", "output2"],
@@ -172,8 +172,8 @@ class WorkflowPlanner:
             "estimated_nodes": 5,
             "metadata": {{
                 "tags": ["tag1", "tag2"],
-                "priority": "normal|high|critical",
-                "estimated_runtime": "short|medium|long"
+                "priority": "Union[normal, hig]Union[h, critical]",
+                "estimated_runtime": "Union[short, mediu]Union[m, long]"
             }}
         }}
         

@@ -2,6 +2,7 @@
 OpenRouter Provider - F3R1: OpenRouter integration for Umbra AI Agent.
 Adapted from working implementation with F3R1 AI Agent interface.
 """
+from typing import Optional, Union
 import asyncio
 import time
 from enum import Enum
@@ -151,7 +152,7 @@ class OpenRouterProvider(AIProvider):
         max_tokens: int = 500,
         temperature: float = 0.7,
         **kwargs
-    ) -> str | None:
+    ) -> Optional[str]:
         """
         Generate chat completion using OpenRouter.
         
@@ -239,7 +240,7 @@ class OpenRouterProvider(AIProvider):
         model: str = "black-forest-labs/flux-schnell",
         size: str = "1024x1024",
         **kwargs
-    ) -> str | None:
+    ) -> Optional[str]:
         """
         Generate image using OpenRouter.
         

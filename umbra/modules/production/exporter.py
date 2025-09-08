@@ -12,7 +12,7 @@ import logging
 import time
 import zipfile
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional, Union
 
 from ...core.config import UmbraConfig
 from .n8n_client import N8nClient
@@ -35,7 +35,7 @@ class ExportResult:
     """Export operation result"""
     success: bool
     format: str
-    data: bytes | None
+    data: Optional[bytes]
     filename: str
     size_bytes: int
     metadata: dict[str, Any]
@@ -61,7 +61,7 @@ class WorkflowExporter:
 
         logger.info("Workflow exporter initialized")
 
-    async def export_workflow(self, workflow_id: str, options: ExportOptions | None = None) -> dict[str, Any]:
+    async def export_workflow(self, workflow_id: str, options: Optional[ExportOptions] = None) -> dict[str, Any]:
         """Export single workflow with specified options"""
         if options is None:
             options = ExportOptions()
@@ -105,7 +105,7 @@ class WorkflowExporter:
                 "workflow_id": workflow_id
             }
 
-    async def export_multiple_workflows(self, workflow_ids: list[str], options: ExportOptions | None = None) -> dict[str, Any]:
+    async def export_multiple_workflows(self, workflow_ids: list[str], options: Optional[ExportOptions] = None) -> dict[str, Any]:
         """Export multiple workflows as archive"""
         if options is None:
             options = ExportOptions(format="zip", compress=True)

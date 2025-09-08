@@ -6,7 +6,7 @@ import logging
 import os
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import Any, Union
 
 try:
     import fitz  # PyMuPDF for PDF handling
@@ -345,8 +345,8 @@ Merci!""",
 
         # Swiss VAT rates (8.1%, 2.6%, 3.8%)
         vat_patterns = [
-            r'(?:MWST|TVA|IVA|VAT)\s*([0-9.,]+)\s*%',
-            r'([0-9.,]+)\s*%\s*(?:MWST|TVA|IVA|VAT)'
+            r'(?:Union[MWST, TV]Union[A, IV]Union[A, VAT])\s*([0-9.,]+)\s*%',
+            r'([0-9.,]+)\s*%\s*(?:Union[MWST, TV]Union[A, IV]Union[A, VAT])'
         ]
 
         for pattern in vat_patterns:

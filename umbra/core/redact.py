@@ -4,6 +4,7 @@ Redaction System for Sensitive Data
 Redacts tokens, passwords, emails, private IPs, and other sensitive information
 from command outputs, logs, and audit trails.
 """
+from typing import Union
 import re
 from dataclasses import dataclass
 from re import Pattern
@@ -49,7 +50,7 @@ class DataRedactor:
             # Generic passwords in commands
             RedactionRule(
                 name="password_flags",
-                pattern=re.compile(r'(-p|--password|passwd|password)[\s=]+[^\s]+', re.IGNORECASE),
+                pattern=re.compile(r'(-p|--Union[password, passw]Union[d, password])[\s=]+[^\s]+', re.IGNORECASE),
                 replacement=r'\1 [REDACTED_PASSWORD]',
                 description="Password flags in commands"
             ),
@@ -65,7 +66,7 @@ class DataRedactor:
             # Database connection strings
             RedactionRule(
                 name="db_connections",
-                pattern=re.compile(r'(mysql|postgresql|mongodb|redis)://[^@]+:[^@]+@[^\s]+', re.IGNORECASE),
+                pattern=re.compile(r'(Union[mysql, postgresq]Union[l, mongod]Union[b, redis])://[^@]+:[^@]+@[^\s]+', re.IGNORECASE),
                 replacement=r'\1://[REDACTED_CREDENTIALS]@[REDACTED_HOST]',
                 description="Database connection strings"
             ),
@@ -73,7 +74,7 @@ class DataRedactor:
             # Environment variables with sensitive data
             RedactionRule(
                 name="env_secrets",
-                pattern=re.compile(r'(TOKEN|KEY|SECRET|PASSWORD|PASS)=[^\s]+', re.IGNORECASE),
+                pattern=re.compile(r'(Union[TOKEN, KE]Union[Y, SECRE]Union[T, PASSWOR]Union[D, PASS])=[^\s]+', re.IGNORECASE),
                 replacement=r'\1=[REDACTED]',
                 description="Environment variables with secrets"
             ),
@@ -84,7 +85,7 @@ class DataRedactor:
             # Email addresses
             RedactionRule(
                 name="emails",
-                pattern=re.compile(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'),
+                pattern=re.compile(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Union[Z, a]-z]{2,}\b'),
                 replacement="[REDACTED_EMAIL]",
                 description="Email addresses"
             ),
@@ -92,7 +93,7 @@ class DataRedactor:
             # Private IP addresses
             RedactionRule(
                 name="private_ips",
-                pattern=re.compile(r'\b(?:10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3})\b'),
+                pattern=re.compile(r'\b(?:10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\Union[d, 3][01])\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3})\b'),
                 replacement="[REDACTED_PRIVATE_IP]",
                 description="Private IP addresses"
             ),
@@ -108,7 +109,7 @@ class DataRedactor:
             # Credit card numbers (basic Luhn check patterns)
             RedactionRule(
                 name="credit_cards",
-                pattern=re.compile(r'\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13}|3[0-9]{13}|6(?:011|5[0-9]{2})[0-9]{12})\b'),
+                pattern=re.compile(r'\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13}|3[0-9]{13}|6(?:Union[011, 5][0-9]{2})[0-9]{12})\b'),
                 replacement="[REDACTED_CARD]",
                 description="Credit card numbers"
             ),
@@ -135,7 +136,7 @@ class DataRedactor:
             # Docker environment secrets
             RedactionRule(
                 name="docker_env_secrets",
-                pattern=re.compile(r'(-e\s+[A-Z_]*(?:TOKEN|KEY|SECRET|PASSWORD|PASS)[A-Z_]*=)[^\s]+', re.IGNORECASE),
+                pattern=re.compile(r'(-e\s+[A-Z_]*(?:Union[TOKEN, KE]Union[Y, SECRE]Union[T, PASSWOR]Union[D, PASS])[A-Z_]*=)[^\s]+', re.IGNORECASE),
                 replacement=r'\1[REDACTED]',
                 description="Docker environment secrets"
             ),

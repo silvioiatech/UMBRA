@@ -3,7 +3,7 @@ Cloudflare R2 Client - F4R2: S3-compatible object storage client.
 Thin wrapper around boto3 for Cloudflare R2 with optimized settings.
 """
 import time
-from typing import Any
+from typing import Any, Optional, Union
 
 import boto3
 from botocore.config import Config
@@ -176,7 +176,7 @@ class R2Client:
         self,
         key: str,
         data: bytes,
-        content_type: str | None = None,
+        content_type: Optional[str] = None,
         metadata: dict[str, str] | None = None
     ) -> dict[str, Any]:
         """
@@ -434,7 +434,7 @@ class R2Client:
         self,
         prefix: str = "",
         max_keys: int = 1000,
-        continuation_token: str | None = None
+        continuation_token: Optional[str] = None
     ) -> dict[str, Any]:
         """
         List objects in R2 bucket with optional prefix.

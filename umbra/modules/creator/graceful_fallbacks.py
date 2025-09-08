@@ -157,7 +157,7 @@ def get_missing_provider_message(capability: str, providers_config: Dict[str, An
                 "• CREATOR_STABILITY_API_KEY=your_key (Stability AI - recommended)",
                 "• CREATOR_OPENAI_API_KEY=your_key (DALL-E)",  
                 "• CREATOR_REPLICATE_API_TOKEN=your_token (Replicate)",
-                "• Set CREATOR_IMAGE_PROVIDER=stability|openai|replicate"
+                "• Set CREATOR_IMAGE_PROVIDER=Union[stability, opena]Union[i, replicate]"
             ]
         },
         "video": {
@@ -166,7 +166,7 @@ def get_missing_provider_message(capability: str, providers_config: Dict[str, An
                 "• CREATOR_REPLICATE_API_TOKEN=your_token (recommended)",
                 "• CREATOR_PIKA_API_KEY=your_key (Pika Labs)",
                 "• CREATOR_RUNWAY_API_KEY=your_key (Runway ML)",
-                "• Set CREATOR_VIDEO_PROVIDER=replicate|pika|runway"
+                "• Set CREATOR_VIDEO_PROVIDER=Union[replicate, pik]Union[a, runway]"
             ]
         },
         "tts": {
@@ -174,7 +174,7 @@ def get_missing_provider_message(capability: str, providers_config: Dict[str, An
             "providers": [
                 "• CREATOR_ELEVENLABS_API_KEY=your_key (ElevenLabs - recommended)",
                 "• CREATOR_OPENAI_API_KEY=your_key (OpenAI TTS)",
-                "• Set CREATOR_TTS_PROVIDER=elevenlabs|openai"
+                "• Set CREATOR_TTS_PROVIDER=Union[elevenlabs, openai]"
             ]
         },
         "music": {
@@ -182,7 +182,7 @@ def get_missing_provider_message(capability: str, providers_config: Dict[str, An
             "providers": [
                 "• CREATOR_SUNO_API_KEY=your_key (Suno AI)",
                 "• CREATOR_REPLICATE_API_TOKEN=your_token (Replicate)",
-                "• Set CREATOR_MUSIC_PROVIDER=suno|replicate"
+                "• Set CREATOR_MUSIC_PROVIDER=Union[suno, replicate]"
             ]
         },
         "asr": {
@@ -190,7 +190,7 @@ def get_missing_provider_message(capability: str, providers_config: Dict[str, An
             "providers": [
                 "• CREATOR_OPENAI_API_KEY=your_key (Whisper - recommended)",
                 "• CREATOR_DEEPGRAM_API_KEY=your_key (Deepgram)",
-                "• Set CREATOR_ASR_PROVIDER=openai|deepgram"
+                "• Set CREATOR_ASR_PROVIDER=Union[openai, deepgram]"
             ]
         }
     }

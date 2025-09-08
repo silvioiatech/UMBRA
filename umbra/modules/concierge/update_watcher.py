@@ -9,7 +9,7 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime, time, timedelta
 from enum import Enum
-from typing import Any
+from typing import Any, Optional, Union
 
 from ...core.config import UmbraConfig
 from .blue_green import BlueGreenManager
@@ -56,8 +56,8 @@ class ScanResult:
     available_digest: str
     needs_update: bool
     risk_level: RiskLevel
-    release_notes: str | None = None
-    changelog_url: str | None = None
+    release_notes: Optional[str] = None
+    changelog_url: Optional[str] = None
 
 
 class UpdateWatcher:
@@ -75,8 +75,8 @@ class UpdateWatcher:
         # State management
         self.active_plans: dict[str, UpdatePlan] = {}
         self.scan_results: dict[str, ScanResult] = {}
-        self.last_scan: datetime | None = None
-        self.scheduler_task: asyncio.Task | None = None
+        self.last_scan: Optional[datetime] = None
+        self.scheduler_task: asyncio.Optional[Task] = None
 
         # Configuration
         self.check_times = self._parse_check_times()
@@ -196,7 +196,7 @@ class UpdateWatcher:
             self.logger.error(f"Error during scan: {e}")
             raise
 
-    async def _scan_service(self, service_name: str) -> ScanResult | None:
+    async def _scan_service(self, service_name: str) -> Optional[ScanResult]:
         """Scan a single service for updates."""
         try:
             # Get current image info
@@ -274,8 +274,8 @@ class UpdateWatcher:
             self.logger.warning(f"Could not assess risk for {service_name}: {e}")
             return RiskLevel.MEDIUM
 
-    async def plan_main_blue_green(self, target_tag: str | None = None,
-                                 target_digest: str | None = None) -> UpdatePlan:
+    async def plan_main_blue_green(self, target_tag: Optional[str] = None,
+                                 target_digest: Optional[str] = None) -> UpdatePlan:
         """Create an update plan for the main service using blue-green deployment."""
         service_name = self.main_service
 

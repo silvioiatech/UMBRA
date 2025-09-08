@@ -5,7 +5,7 @@ Provides keyword and merchant search across stored documents.
 import re
 import unicodedata
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Optional, Union
 
 from ..core.logger import get_context_logger
 from .objects import ObjectNotFoundError, ObjectStorage
@@ -93,14 +93,14 @@ class SearchIndex:
 
         return filtered_words
 
-    def _get_index_key(self, module: str, user_id: int | None = None) -> str:
+    def _get_index_key(self, module: str, user_id: Optional[int] = None) -> str:
         """Generate index file key."""
         if user_id:
             return f"manifests/{module}/search_index-{user_id}.json"
         else:
             return f"manifests/{module}/search_index.json"
 
-    def _load_index(self, module: str, user_id: int | None = None) -> dict[str, Any]:
+    def _load_index(self, module: str, user_id: Optional[int] = None) -> dict[str, Any]:
         """Load existing search index."""
 
         index_key = self._get_index_key(module, user_id)
@@ -144,7 +144,7 @@ class SearchIndex:
             )
             raise SearchIndexError(f"Failed to load search index: {str(e)}")
 
-    def _save_index(self, index_data: dict[str, Any], module: str, user_id: int | None = None) -> None:
+    def _save_index(self, index_data: dict[str, Any], module: str, user_id: Optional[int] = None) -> None:
         """Save search index to storage."""
 
         index_key = self._get_index_key(module, user_id)
@@ -182,8 +182,8 @@ class SearchIndex:
         document_id: str,
         text_content: str,
         metadata: dict[str, Any] | None = None,
-        merchant: str | None = None,
-        user_id: int | None = None
+        merchant: Optional[str] = None,
+        user_id: Optional[int] = None
     ) -> dict[str, Any]:
         """
         Add or update document in search index.
@@ -289,7 +289,7 @@ class SearchIndex:
         self,
         module: str,
         keywords: list[str],
-        user_id: int | None = None,
+        user_id: Optional[int] = None,
         operator: str = 'AND',
         limit: int = 100
     ) -> list[dict[str, Any]]:
@@ -382,7 +382,7 @@ class SearchIndex:
         self,
         module: str,
         merchant_query: str,
-        user_id: int | None = None,
+        user_id: Optional[int] = None,
         limit: int = 100
     ) -> list[dict[str, Any]]:
         """
@@ -457,7 +457,7 @@ class SearchIndex:
 
         return results
 
-    def get_index_stats(self, module: str, user_id: int | None = None) -> dict[str, Any]:
+    def get_index_stats(self, module: str, user_id: Optional[int] = None) -> dict[str, Any]:
         """
         Get search index statistics.
         
@@ -497,7 +497,7 @@ class SearchIndex:
         self,
         module: str,
         document_id: str,
-        user_id: int | None = None
+        user_id: Optional[int] = None
     ) -> bool:
         """
         Remove document from search index.
@@ -571,7 +571,7 @@ class SearchIndex:
         self,
         module: str,
         documents: list[dict[str, Any]],
-        user_id: int | None = None
+        user_id: Optional[int] = None
     ) -> dict[str, Any]:
         """
         Rebuild search index from scratch.

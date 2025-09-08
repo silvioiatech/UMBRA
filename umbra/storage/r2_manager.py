@@ -8,7 +8,7 @@ import json
 import uuid
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
-from typing import Any, Union
+from typing import Any, Union, Optional
 
 try:
     import boto3
@@ -33,9 +33,9 @@ logger = get_logger("umbra.storage.r2")
 class R2Object:
     """Represents an object in R2 storage."""
     key: str
-    etag: str | None = None
-    size: int | None = None
-    last_modified: datetime | None = None
+    etag: Optional[str] = None
+    size: Optional[int] = None
+    last_modified: Optional[datetime] = None
     metadata: dict[str, str] | None = None
 
 
@@ -48,8 +48,8 @@ class ManifestEntry:
     timestamp: datetime
     data_type: str  # 'jsonl', 'parquet', 'json'
     key: str
-    etag: str | None = None
-    size: int | None = None
+    etag: Optional[str] = None
+    size: Optional[int] = None
     metadata: dict[str, Any] | None = None
 
 

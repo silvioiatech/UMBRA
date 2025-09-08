@@ -10,7 +10,7 @@ import logging
 import time
 import uuid
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional, Union
 
 from ...core.config import UmbraConfig
 from .n8n_client import N8nClient
@@ -24,12 +24,12 @@ class TestExecution:
     workflow_id: str
     test_data: dict[str, Any] | None
     start_time: float
-    end_time: float | None = None
+    end_time: Optional[float] = None
     status: str = "running"  # running, success, failed, timeout
-    execution_id: str | None = None
+    execution_id: Optional[str] = None
     result: dict[str, Any] | None = None
-    error: str | None = None
-    duration_ms: int | None = None
+    error: Optional[str] = None
+    duration_ms: Optional[int] = None
 
 @dataclass
 class TestResult:

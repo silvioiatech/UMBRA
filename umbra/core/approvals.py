@@ -10,7 +10,7 @@ import secrets
 import time
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any
+from typing import Any, Optional, Union
 
 from .risk import RiskLevel
 
@@ -34,11 +34,11 @@ class ApprovalRequest:
     created_at: float
     expires_at: float
     status: ApprovalStatus = ApprovalStatus.PENDING
-    approved_at: float | None = None
-    approved_by: int | None = None
-    execution_hash: str | None = None
-    double_confirm_token: str | None = None
-    double_confirm_at: float | None = None
+    approved_at: Optional[float] = None
+    approved_by: Optional[int] = None
+    execution_hash: Optional[str] = None
+    double_confirm_token: Optional[str] = None
+    double_confirm_at: Optional[float] = None
 
 class ApprovalManager:
     """Manages approval flow with SQLite storage and TTL enforcement."""
@@ -132,7 +132,7 @@ class ApprovalManager:
 
         return request
 
-    def get_approval_request(self, token: str) -> ApprovalRequest | None:
+    def get_approval_request(self, token: str) -> Optional[ApprovalRequest]:
         """Get approval request by token."""
         row = self.db.query_one(
             "SELECT * FROM approvals WHERE token = ?",
@@ -266,7 +266,7 @@ class ApprovalManager:
 
         return result.rowcount if hasattr(result, 'rowcount') else 0
 
-    def get_pending_approvals(self, user_id: int | None = None) -> list[ApprovalRequest]:
+    def get_pending_approvals(self, user_id: Optional[int] = None) -> list[ApprovalRequest]:
         """Get pending approval requests for a user or all users."""
         # Clean up expired first
         self.cleanup_expired()
@@ -286,7 +286,7 @@ class ApprovalManager:
 
         return [self._row_to_approval(row) for row in rows]
 
-    def get_approval_history(self, user_id: int | None = None, limit: int = 50) -> list[ApprovalRequest]:
+    def get_approval_history(self, user_id: Optional[int] = None, limit: int = 50) -> list[ApprovalRequest]:
         """Get approval history."""
         if user_id:
             rows = self.db.query_all("""

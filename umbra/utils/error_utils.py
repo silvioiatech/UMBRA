@@ -4,7 +4,7 @@ Provides standardized error handling and sensitive data redaction.
 """
 import re
 from enum import Enum
-from typing import Any
+from typing import Any, Optional, Union
 
 from ..core.logger import get_context_logger
 
@@ -94,7 +94,7 @@ class ErrorMapper:
     def map_error(
         self,
         error_type: ErrorType,
-        original_error: str | None = None,
+        original_error: Optional[str] = None,
         context: dict[str, Any] | None = None
     ) -> dict[str, Any]:
         """Map an error to user-friendly response."""
@@ -170,7 +170,7 @@ class DataRedactor:
         # Patterns for sensitive data
         self.sensitive_patterns = [
             # API Keys and tokens
-            (r'(?i)(api[_-]?key|token|secret|password)\s*[:=]\s*["\']?([a-zA-Z0-9_-]{8,})["\']?',
+            (r'(?i)(api[_-]?Union[key, toke]Union[n, secre]Union[t, password])\s*[:=]\s*["\']?([a-zA-Z0-9_-]{8,})["\']?',
              r'\1: ***REDACTED***'),
 
             # URLs with credentials
@@ -265,7 +265,7 @@ data_redactor = DataRedactor()
 # Convenience functions
 def map_error(
     error_type: ErrorType,
-    original_error: str | None = None,
+    original_error: Optional[str] = None,
     context: dict[str, Any] | None = None
 ) -> dict[str, Any]:
     """Map an error to user-friendly response."""
@@ -286,7 +286,7 @@ def redact_dict(data: dict[str, Any]) -> dict[str, Any]:
 def create_error_response(
     exception: Exception,
     context: dict[str, Any] | None = None,
-    user_id: int | None = None
+    user_id: Optional[int] = None
 ) -> dict[str, Any]:
     """Create a standardized error response from an exception."""
 

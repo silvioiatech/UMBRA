@@ -6,7 +6,7 @@ import asyncio
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any
+from typing import Any, Optional, Union
 
 from ..core.logger import get_context_logger, set_request_context
 
@@ -36,11 +36,11 @@ class AgentResponse:
     """Response from the AI agent."""
     content: str
     success: bool
-    error: str | None = None
+    error: Optional[str] = None
     usage: dict[str, Any] | None = None
-    provider: str | None = None
-    model: str | None = None
-    duration_ms: float | None = None
+    provider: Optional[str] = None
+    model: Optional[str] = None
+    duration_ms: Optional[float] = None
 
 class AIProvider(ABC):
     """Abstract base class for AI providers."""
@@ -71,7 +71,7 @@ class UmbraAIAgent:
         self.config = config
         self.logger = get_context_logger(__name__)
         self.providers: dict[str, AIProvider] = {}
-        self.default_provider: str | None = None
+        self.default_provider: Optional[str] = None
 
         # Error mapping for common issues
         self.error_mappings = {
@@ -154,7 +154,7 @@ class UmbraAIAgent:
             if provider.is_available()
         ]
 
-    def get_capabilities(self, provider_name: str | None = None) -> list[AgentCapability]:
+    def get_capabilities(self, provider_name: Optional[str] = None) -> list[AgentCapability]:
         """Get capabilities for a specific provider or default."""
         if provider_name and provider_name in self.providers:
             return self.providers[provider_name].get_capabilities()
@@ -168,7 +168,7 @@ class UmbraAIAgent:
         message: str,
         user_id: int,
         context: dict[str, Any] | None = None,
-        provider_name: str | None = None,
+        provider_name: Optional[str] = None,
         **kwargs
     ) -> AgentResponse:
         """

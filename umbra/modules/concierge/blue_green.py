@@ -7,7 +7,7 @@ import logging
 import time
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any
+from typing import Any, Optional, Union
 
 from ...core.config import UmbraConfig
 from .docker_registry import DockerRegistryHelper
@@ -29,18 +29,18 @@ class DeploymentStep:
     id: str
     type: str
     description: str
-    color: DeploymentColor | None = None
+    color: Optional[DeploymentColor] = None
     timeout: int = 60
     retry_count: int = 3
     required: bool = True
-    rollback_action: str | None = None
+    rollback_action: Optional[str] = None
 
 
 @dataclass
 class HealthCheckResult:
     status: HealthStatus
     response_time: float
-    error_message: str | None = None
+    error_message: Optional[str] = None
     details: dict[str, Any] | None = None
 
 
@@ -76,7 +76,7 @@ class BlueGreenManager:
         self.logger.info(f"BlueGreenManager initialized for service '{self.main_service}'")
         self.logger.info(f"Colors: {self.colors}, Nginx container: {self.nginx_container}")
 
-    async def get_current_color(self) -> DeploymentColor | None:
+    async def get_current_color(self) -> Optional[DeploymentColor]:
         """Determine which color is currently active."""
         try:
             # Check which containers are running
@@ -379,7 +379,7 @@ class BlueGreenManager:
             return False
 
     async def _start_container(self, container_name: str, image: str,
-                             color: DeploymentColor | None) -> bool:
+                             color: Optional[DeploymentColor]) -> bool:
         """Start a container with the specified image."""
         try:
             # This is a simplified implementation
@@ -548,7 +548,7 @@ class BlueGreenManager:
             self.logger.error(f"Error reloading Nginx: {e}")
             return False
 
-    async def _test_workflow(self, webhook_url: str | None) -> bool:
+    async def _test_workflow(self, webhook_url: Optional[str]) -> bool:
         """Test workflow via webhook."""
         if not webhook_url:
             return True  # Skip if no webhook configured

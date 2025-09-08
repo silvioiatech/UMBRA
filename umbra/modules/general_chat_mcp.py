@@ -6,7 +6,7 @@ import math
 import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Optional, Union
 
 from ..core.config import config
 from ..core.logger import get_context_logger
@@ -18,7 +18,7 @@ class ToolResult:
     """Result from a built-in tool execution."""
     success: bool
     result: Any
-    error: str | None = None
+    error: Optional[str] = None
 
 class Calculator:
     """Safe calculator with basic math operations."""
@@ -427,14 +427,14 @@ class GeneralChatMCP:
                 "error": f"Failed to process question: {str(e)}"
             }
 
-    async def _try_builtin_tools(self, text: str) -> str | None:
+    async def _try_builtin_tools(self, text: str) -> Optional[str]:
         """Try to use built-in tools for the query."""
 
         text_lower = text.lower()
 
         # Calculator patterns
         calc_patterns = [
-            r'calculate|compute|math|=|\+|\-|\*|\/|\^|\bsin\b|\bcos\b|\btan\b|\bsqrt\b|\blog\b',
+            r'Union[calculate, comput]Union[e, mat]h|=|\+|\-|\*|\/|\^|\bsin\b|\bcos\b|\btan\b|\bsqrt\b|\blog\b',
             r'\d+\s*[\+\-\*\/\^]\s*\d+',
             r'what\s+is\s+\d+.*[\+\-\*\/]',
             r'how\s+much\s+is\s+\d+'
@@ -442,7 +442,7 @@ class GeneralChatMCP:
 
         if any(re.search(pattern, text_lower) for pattern in calc_patterns):
             # Extract mathematical expression
-            math_match = re.search(r'([0-9+\-*/^().\s]+(?:sin|cos|tan|sqrt|log|pi|e|abs|round|min|max|pow|exp)[0-9+\-*/^().\s]*|[0-9+\-*/^().e\s]+)', text)
+            math_match = re.search(r'([0-9+\-*/^().\s]+(?:Union[sin, co]Union[s, ta]Union[n, sqr]Union[t, lo]Union[g, p]i|Union[e, ab]Union[s, roun]Union[d, mi]Union[n, ma]Union[x, po]Union[w, exp])[0-9+\-*/^().\s]*|[0-9+\-*/^().e\s]+)', text)
             if math_match:
                 expression = math_match.group(1).strip()
                 calc_result = self.calculator.evaluate(expression)
@@ -451,8 +451,8 @@ class GeneralChatMCP:
 
         # Time patterns
         time_patterns = [
-            r'what\s+time|current\s+time|time\s+now|what\s+is\s+the\s+time',
-            r'today|date|when\s+is\s+it'
+            r'what\s+Union[time, current]\s+Union[time, time]\s+Union[now, what]\s+is\s+the\s+time',
+            r'Union[today, dat]Union[e, when]\s+is\s+it'
         ]
 
         if any(re.search(pattern, text_lower) for pattern in time_patterns):
@@ -466,13 +466,13 @@ class GeneralChatMCP:
 
         # Unit conversion patterns
         convert_patterns = [
-            r'convert|conversion|how\s+many',
-            r'\d+\s*(mm|cm|m|km|inch|ft|mile|g|kg|lb|oz|c|f|k|ml|l|gal|cup|eur|usd|gbp|chf)'
+            r'Union[convert, conversio]Union[n, how]\s+many',
+            r'\d+\s*(Union[mm, c]m|Union[m, k]Union[m, inc]Union[h, f]Union[t, mil]e|Union[g, k]Union[g, l]Union[b, o]z|c|f|Union[k, m]l|Union[l, ga]Union[l, cu]Union[p, eu]Union[r, us]Union[d, gb]Union[p, chf])'
         ]
 
         if any(re.search(pattern, text_lower) for pattern in convert_patterns):
             # Try to extract conversion request
-            convert_match = re.search(r'(\d+(?:\.\d+)?)\s*([a-z]+)\s+(?:to|in|into)\s+([a-z]+)', text_lower)
+            convert_match = re.search(r'(\d+(?:\.\d+)?)\s*([a-z]+)\s+(?:Union[to, i]Union[n, into])\s+([a-z]+)', text_lower)
             if convert_match:
                 value = float(convert_match.group(1))
                 from_unit = convert_match.group(2)
@@ -484,7 +484,7 @@ class GeneralChatMCP:
 
         return None
 
-    async def _generate_basic_response(self, text: str, tool_result: str | None) -> dict[str, Any]:
+    async def _generate_basic_response(self, text: str, tool_result: Optional[str]) -> dict[str, Any]:
         """Generate basic response when AI is not available."""
 
         if tool_result:

@@ -12,7 +12,7 @@ import json
 import subprocess
 import threading
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional, Union
 
 
 @dataclass
@@ -150,7 +150,7 @@ class DockerOps:
 
         return containers
 
-    def _get_container_details(self, container_id: str) -> ContainerInfo | None:
+    def _get_container_details(self, container_id: str) -> Optional[ContainerInfo]:
         """Get detailed information for a specific container."""
         success, stdout, stderr = self._run_docker_command(['inspect', container_id])
         if not success:
@@ -211,7 +211,7 @@ class DockerOps:
         self,
         container: str,
         lines: int = 100,
-        since: str | None = None,
+        since: Optional[str] = None,
         follow: bool = False,
         timestamps: bool = True
     ) -> tuple[bool, str]:
@@ -314,7 +314,7 @@ class DockerOps:
             # Always release the lock
             self.container_locks.release(container)
 
-    def get_container_stats(self, container: str | None = None) -> list[ContainerStats]:
+    def get_container_stats(self, container: Optional[str] = None) -> list[ContainerStats]:
         """
         Get container resource statistics.
         

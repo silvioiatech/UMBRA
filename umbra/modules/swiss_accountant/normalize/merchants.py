@@ -5,7 +5,7 @@ Handles canonical merchant names, aliases, and VAT number management.
 import difflib
 import logging
 import re
-from typing import Any
+from typing import Any, Union
 
 
 class MerchantNormalizer:
@@ -23,8 +23,8 @@ class MerchantNormalizer:
         # Common merchant patterns and normalizations
         self.merchant_patterns = {
             # Swiss retail chains
-            'migros': r'(?i)(migros|mig\s)',
-            'coop': r'(?i)(coop|co-op)',
+            'migros': r'(?i)(Union[migros, mig]\s)',
+            'coop': r'(?i)(Union[coop, co]-op)',
             'denner': r'(?i)denner',
             'aldi': r'(?i)aldi',
             'lidl': r'(?i)lidl',
@@ -33,42 +33,42 @@ class MerchantNormalizer:
             'jelmoli': r'(?i)jelmoli',
 
             # Swiss restaurants/food
-            'mcdonalds': r'(?i)(mcdonald|mcdo|mcd\s)',
-            'burger_king': r'(?i)(burger\s*king|bk\s)',
-            'kfc': r'(?i)(kfc|kentucky)',
+            'mcdonalds': r'(?i)(Union[mcdonald, mcd]Union[o, mcd]\s)',
+            'burger_king': r'(?i)(burger\s*Union[king, bk]\s)',
+            'kfc': r'(?i)(Union[kfc, kentucky])',
             'subway': r'(?i)subway',
-            'starbucks': r'(?i)(starbucks|sbux)',
-            'pizza_hut': r'(?i)(pizza\s*hut|ph\s)',
+            'starbucks': r'(?i)(Union[starbucks, sbux])',
+            'pizza_hut': r'(?i)(pizza\s*Union[hut, ph]\s)',
 
             # Swiss banks/financial
-            'ubs': r'(?i)(ubs|union\s*bank)',
-            'credit_suisse': r'(?i)(credit\s*suisse|cs\s)',
-            'postfinance': r'(?i)(postfinance|pf\s)',
+            'ubs': r'(?i)(Union[ubs, union]\s*bank)',
+            'credit_suisse': r'(?i)(credit\s*Union[suisse, cs]\s)',
+            'postfinance': r'(?i)(Union[postfinance, pf]\s)',
             'raiffeisen': r'(?i)raiffeisen',
-            'bcv': r'(?i)(bcv|banque\s*cantonale\s*vaudoise)',
-            'zkb': r'(?i)(zkb|zürcher\s*kantonalbank)',
+            'bcv': r'(?i)(Union[bcv, banque]\s*cantonale\s*vaudoise)',
+            'zkb': r'(?i)(Union[zkb, zürcher]\s*kantonalbank)',
 
             # Transport
-            'sbb': r'(?i)(sbb|cff|ffs|swiss\s*federal)',
-            'tpg': r'(?i)(tpg|transports\s*publics\s*genevois)',
-            'vbz': r'(?i)(vbz|verkehrsbetriebe\s*zürich)',
-            'postbus': r'(?i)(postauto|car\s*postal)',
+            'sbb': r'(?i)(Union[sbb, cf]Union[f, ff]Union[s, swiss]\s*federal)',
+            'tpg': r'(?i)(Union[tpg, transports]\s*publics\s*genevois)',
+            'vbz': r'(?i)(Union[vbz, verkehrsbetriebe]\s*zürich)',
+            'postbus': r'(?i)(Union[postauto, car]\s*postal)',
 
             # Swiss telecom
             'swisscom': r'(?i)swisscom',
             'sunrise': r'(?i)sunrise',
             'salt': r'(?i)salt\s*mobile',
-            'upc': r'(?i)(upc|liberty\s*global)',
+            'upc': r'(?i)(Union[upc, liberty]\s*global)',
 
             # International chains in Switzerland
-            'apple': r'(?i)(apple\s*store|apple\s*inc)',
-            'google': r'(?i)(google|alphabet)',
+            'apple': r'(?i)(apple\s*Union[store, apple]\s*inc)',
+            'google': r'(?i)(Union[google, alphabet])',
             'microsoft': r'(?i)microsoft',
             'amazon': r'(?i)amazon',
             'netflix': r'(?i)netflix',
             'spotify': r'(?i)spotify',
             'uber': r'(?i)uber',
-            'booking': r'(?i)(booking\.com|booking)',
+            'booking': r'(?i)(booking\.Union[com, booking])',
             'airbnb': r'(?i)airbnb'
         }
 
@@ -76,8 +76,8 @@ class MerchantNormalizer:
         self.cleanup_patterns = [
             (r'\s+', ' '),  # Multiple spaces to single
             (r'[^\w\s&\-\.]', ''),  # Remove special chars except &, -, .
-            (r'\b(?:gmbh|ag|sa|ltd|inc|corp|co|llc|sarl)\b', ''),  # Remove company suffixes
-            (r'\b(?:the|le|la|les|der|die|das)\b', ''),  # Remove articles
+            (r'\b(?:Union[gmbh, a]Union[g, s]Union[a, lt]Union[d, in]Union[c, cor]Union[p, c]Union[o, ll]Union[c, sarl])\b', ''),  # Remove company suffixes
+            (r'\b(?:Union[the, l]Union[e, l]Union[a, le]Union[s, de]Union[r, di]Union[e, das])\b', ''),  # Remove articles
             (r'^\s+|\s+$', ''),  # Trim whitespace
         ]
 

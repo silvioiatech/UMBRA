@@ -2,6 +2,7 @@
 Rate limiting functionality for Umbra bot.
 Implements per-user rate limiting with configurable limits and time windows.
 """
+from typing import Optional, Union
 import time
 from collections import defaultdict, deque
 from contextlib import asynccontextmanager
@@ -91,7 +92,7 @@ class RateLimiter:
 
         return True
 
-    def get_reset_time(self, user_id: int) -> float | None:
+    def get_reset_time(self, user_id: int) -> Optional[float]:
         """Get when the rate limit resets for a user."""
         if user_id not in self.limits or not self.limits[user_id].requests:
             return None

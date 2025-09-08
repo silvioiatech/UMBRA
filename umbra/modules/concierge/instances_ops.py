@@ -14,7 +14,7 @@ import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional, Union
 
 try:
     import docker
@@ -38,24 +38,24 @@ class InstanceInfo:
     reserved: bool
     created_at: str
     updated_at: str
-    container_id: str | None = None
-    container_name: str | None = None
+    container_id: Optional[str] = None
+    container_name: Optional[str] = None
 
 @dataclass
 class InstanceCreateRequest:
     """Request to create a new instance."""
     client: str
-    name: str | None = None
-    port: int | None = None
+    name: Optional[str] = None
+    port: Optional[int] = None
     env_overrides: dict[str, str] | None = None
 
 @dataclass
 class InstanceCreateResult:
     """Result of instance creation."""
     success: bool
-    instance: InstanceInfo | None = None
-    error: str | None = None
-    audit_id: str | None = None
+    instance: Optional[InstanceInfo] = None
+    error: Optional[str] = None
+    audit_id: Optional[str] = None
 
 class InstancesRegistry:
     """
@@ -219,7 +219,7 @@ class InstancesRegistry:
             self.logger.error(f"Failed to initialize instances schema: {e}")
             raise
 
-    def list_instances(self, client_filter: str | None = None) -> list[InstanceInfo]:
+    def list_instances(self, client_filter: Optional[str] = None) -> list[InstanceInfo]:
         """
         List instances with optional client filter.
         
@@ -276,12 +276,12 @@ class InstancesRegistry:
             self.logger.error(f"Failed to list instances: {e}")
             return []
 
-    def get_instance(self, client_id: str) -> InstanceInfo | None:
+    def get_instance(self, client_id: str) -> Optional[InstanceInfo]:
         """Get single instance by client ID."""
         instances = self.list_instances(client_filter=client_id)
         return instances[0] if instances else None
 
-    def _allocate_port(self, preferred_port: int | None = None) -> int | None:
+    def _allocate_port(self, preferred_port: Optional[int] = None) -> Optional[int]:
         """
         Allocate an available port from the range.
         
@@ -342,7 +342,7 @@ class InstancesRegistry:
         protocol = "https" if self.use_https else "http"
         return f"{protocol}://{self.host}:{port}"
 
-    def _create_container(self, instance_info: InstanceInfo, env_overrides: dict[str, str] | None = None) -> tuple[bool, str | None, str | None]:
+    def _create_container(self, instance_info: InstanceInfo, env_overrides: dict[str, str] | None = None) -> tuple[bool, Optional[str], Optional[str]]:
         """
         Create Docker container for instance.
         
@@ -551,7 +551,7 @@ class InstancesRegistry:
                 audit_id=audit_id
             )
 
-    async def delete_instance(self, client_id: str, mode: str, user_id: int) -> tuple[bool, str | None, str | None]:
+    async def delete_instance(self, client_id: str, mode: str, user_id: int) -> tuple[bool, Optional[str], Optional[str]]:
         """
         Delete instance with specified mode.
         
@@ -672,7 +672,7 @@ class InstancesRegistry:
         params: dict[str, Any],
         status: str,
         duration_ms: float,
-        error_message: str | None = None
+        error_message: Optional[str] = None
     ):
         """Audit instance action."""
         try:

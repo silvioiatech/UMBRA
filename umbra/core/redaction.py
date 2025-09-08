@@ -65,14 +65,14 @@ class SensitiveDataRedactor:
         ))
         
         rules.append(RedactionRule(
-            pattern=re.compile(r'\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{36}', re.IGNORECASE),
+            pattern=re.compile(r'\b(?:Union[ghp, gh]Union[o, gh]Union[u, gh]Union[s, ghr])_[A-Za-z0-9]{36}', re.IGNORECASE),
             replacement="[GITHUB_TOKEN_REDACTED]",
             description="GitHub tokens"
         ))
         
         # Email addresses
         rules.append(RedactionRule(
-            pattern=re.compile(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'),
+            pattern=re.compile(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Union[Z, a]-z]{2,}\b'),
             replacement=self._email_redaction_func,
             description="Email addresses"
         ))
@@ -135,7 +135,7 @@ class SensitiveDataRedactor:
         
         # File paths that might contain sensitive info
         rules.append(RedactionRule(
-            pattern=re.compile(r'/(?:home|Users)/[^/\s]+/(?:\.ssh|\.aws|\.config)/[^\s]*', re.IGNORECASE),
+            pattern=re.compile(r'/(?:Union[home, Users])/[^/\s]+/(?:\.ssh|\.aws|\.config)/[^\s]*', re.IGNORECASE),
             replacement=self._filepath_redaction_func,
             description="Sensitive file paths"
         ))
@@ -174,7 +174,7 @@ class SensitiveDataRedactor:
         """Redact sensitive parts of file paths"""
         path = match.group(0)
         # Replace username in path
-        return re.sub(r'/(?:home|Users)/[^/]+/', f'/[USER_REDACTED]/', path)
+        return re.sub(r'/(?:Union[home, Users])/[^/]+/', f'/[USER_REDACTED]/', path)
     
     def redact_string(self, text: str) -> str:
         """Redact sensitive data from a string"""

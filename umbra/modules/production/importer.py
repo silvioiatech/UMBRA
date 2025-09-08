@@ -9,7 +9,7 @@ import json
 import logging
 import time
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional, Union
 
 from ...core.config import UmbraConfig
 from .n8n_client import N8nClient
@@ -21,24 +21,24 @@ class ImportConflict:
     """Represents a conflict during import"""
     type: str  # "name_exists", "id_conflict", "credential_missing"
     message: str
-    current_value: str | None
-    new_value: str | None
-    resolution: str | None = None
+    current_value: Optional[str]
+    new_value: Optional[str]
+    resolution: Optional[str] = None
 
 @dataclass
 class ImportDiff:
     """Represents differences between current and new workflow"""
     field: str
     operation: str  # "add", "remove", "modify"
-    old_value: Any | None
-    new_value: Any | None
+    old_value: Optional[Any]
+    new_value: Optional[Any]
     location: str
 
 @dataclass
 class ImportResult:
     """Complete import operation result"""
     success: bool
-    workflow_id: str | None
+    workflow_id: Optional[str]
     mode: str
     conflicts: list[ImportConflict]
     diffs: list[ImportDiff]
@@ -484,7 +484,7 @@ class WorkflowImporter:
         except Exception as e:
             logger.warning(f"Failed to create backup: {e}")
 
-    async def _cleanup_old_drafts(self, original_name: str | None):
+    async def _cleanup_old_drafts(self, original_name: Optional[str]):
         """Clean up old draft versions"""
         if not original_name:
             return

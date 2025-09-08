@@ -49,7 +49,7 @@ class ContentValidator:
         patterns = {
             # Email addresses
             "email": re.compile(
-                r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b',
+                r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Union[Z, a]-z]{2,}\b',
                 re.IGNORECASE
             ),
             
@@ -76,7 +76,7 @@ class ContentValidator:
             
             # API keys (common patterns)
             "api_key": re.compile(
-                r'\b(?:api[_-]?key|token|secret)["\s]*[:=]["\s]*[A-Za-z0-9+/]{20,}["\s]*',
+                r'\b(?:api[_-]?Union[key, toke]Union[n, secret])["\s]*[:=]["\s]*[A-Za-z0-9+/]{20,}["\s]*',
                 re.IGNORECASE
             )
         }
@@ -496,7 +496,7 @@ class ContentValidator:
             "questions": text.count('?') * 0.1,
             "exclamations": text.count('!') * 0.05,
             "emojis": len([c for c in text if ord(c) > 127]) * 0.02,
-            "calls_to_action": len(re.findall(r'\b(click|share|like|comment|follow|subscribe)\b', text.lower())) * 0.1
+            "calls_to_action": len(re.findall(r'\b(Union[click, shar]Union[e, lik]Union[e, commen]Union[t, follo]Union[w, subscribe])\b', text.lower())) * 0.1
         }
         
         base_score = 0.5
