@@ -77,7 +77,7 @@ All modules feature comprehensive security (RBAC), observability (Prometheus met
 
 ```
 UMBRA/
-├── umbra/
+├── umbra/                   # Main application package
 │   ├── core/                # F1-F4R2: Core runtime, AI, storage
 │   │   ├── config.py        # Configuration management
 │   │   ├── rbac.py          # Role-based access control
@@ -93,8 +93,13 @@ UMBRA/
 │   ├── storage/             # F4R2: R2-first storage
 │   ├── ai/                  # F3R1: OpenRouter integration
 │   └── bot.py              # F2: Telegram bot interface
+├── tests/                   # All test files
+├── demos/                   # Demo and example files
+├── scripts/                 # Setup and utility scripts
+├── docs/                    # Documentation files
 ├── Dockerfile              # Railway deployment
-└── main.py                 # Application entry point
+├── main.py                 # Application entry point
+└── quickstart.py           # Quick start script
 ```
 
 ### Technology Stack
@@ -315,15 +320,15 @@ docker run --env-file .env -p 8000:8000 umbra
 
 ```bash
 # Run all tests
-python -m pytest
+python -m pytest tests/
 
 # Test specific modules
-python test_swiss_accountant.py
-python test_creator_pr_crt3.py
-python test_f4r2_integration.py
+python tests/test_swiss_accountant.py
+python tests/test_creator_pr_crt3.py
+python tests/f4r2_integration_test.py
 
 # System integration test
-python system_test.py
+python tests/system_test.py
 ```
 
 ### Module Development
@@ -342,14 +347,23 @@ class MyModule(BaseModule):
 
 ## 📚 Documentation
 
-- [Architecture Overview](./ARCHITECTURE.md)
-- [Project Map](./PROJECT_MAP.md)
-- [Action Plan](./ACTION_PLAN.md)
-- [F3R1 AI Integration](./F3R1_README.md)
-- [F4R2 Storage](./F4R2_README.md)
+### Main Documentation
+- [Architecture Overview](./docs/ARCHITECTURE.md)
+- [Project Map](./docs/PROJECT_MAP.md)
+- [Action Plan](./docs/ACTION_PLAN.md)
+
+### Module Documentation
+- [F3R1 AI Integration](./docs/F3R1_README.md)
+- [F4R2 Storage](./docs/F4R2_README.md)
 - [Swiss Accountant](./umbra/modules/swiss_accountant/README.md)
-- [Creator Module](./CREATOR_README.md)
-- [Security Documentation](./PR_SEC1_COMPLETION_REPORT.md)
+- [Creator Module](./docs/CREATOR_README.md)
+- [Security Documentation](./docs/PR_SEC1_COMPLETION_REPORT.md)
+
+### Directory Structure
+- [`/tests`](./tests/README.md) - All test files and testing documentation
+- [`/demos`](./demos/README.md) - Demo and example files
+- [`/scripts`](./scripts/README.md) - Setup and utility scripts
+- [`/docs`](./docs/README.md) - Complete project documentation
 
 ## 🤝 Contributing
 
