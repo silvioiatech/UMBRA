@@ -320,9 +320,9 @@ class ProductionController:
             # Stage 2: Catalog scraping (deterministic, no escalation needed)
             logger.info("Starting catalog scraping stage")
             from .catalog import CatalogManager
-            from .n8n_client import N8nClient
+            from .n8n_mcp_client import N8nMCPClient
 
-            n8n_client = N8nClient(self.config)
+            n8n_client = N8nMCPClient(self.config)
             catalog_manager = CatalogManager(n8n_client, self.config)
 
             steps = plan_result.get("plan", {}).get("steps", [])
@@ -366,7 +366,7 @@ class ProductionController:
             logger.info("Starting workflow validation stage")
             from .validator import WorkflowValidator
 
-            n8n_client = N8nClient(self.config)
+            n8n_client = N8nMCPClient(self.config)
             validator = WorkflowValidator(n8n_client, self.config)
 
             validation_result = await validator.validate_workflow(build_result)

@@ -12,7 +12,6 @@ from dataclasses import dataclass
 from typing import Any
 
 from ...core.config import UmbraConfig
-from .n8n_client import N8nClient
 from .n8n_mcp_client import N8nMCPClient
 
 logger = logging.getLogger(__name__)
@@ -37,7 +36,7 @@ class ValidationResult:
 class WorkflowValidator:
     """Validates n8n workflows for correctness and quality"""
 
-    def __init__(self, n8n_client: N8nClient | N8nMCPClient, config: UmbraConfig):
+    def __init__(self, n8n_client: N8nMCPClient, config: UmbraConfig):
         self.n8n_client = n8n_client
         self.config = config
 

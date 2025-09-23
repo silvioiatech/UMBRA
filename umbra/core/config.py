@@ -245,8 +245,8 @@ class UmbraConfig:
         if not self.feature_r2_storage:
             missing.append("R2 Storage (set R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET)")
 
-        if not self.MAIN_N8N_URL:
-            missing.append("Production n8n Integration (set MAIN_N8N_URL)")
+        if not self.MAIN_N8N_URL and not self.N8N_MCP_SERVER_URL:
+            missing.append("Production n8n Integration (set MAIN_N8N_URL or N8N_MCP_SERVER_URL)")
 
         if not self.VPS_HOST:
             missing.append("SSH Operations (set VPS_HOST)")

@@ -2,44 +2,59 @@
 
 ## Overview
 
-The production module has been updated to use an external n8n MCP server hosted on Railway using the `ghcr.io/czlonkowski/n8n-mcp-railway:latest` container.
+The production module has been **fully migrated** to use an external n8n MCP server hosted on Railway using the `ghcr.io/czlonkowski/n8n-mcp-railway:latest` container. The bot no longer needs a direct connection to n8n - everything goes through the MCP server.
+
+## Architecture
+
+```
+UMBRA Bot → N8n MCP Server (Railway) → Your N8n Instance
+```
+
+**Benefits:**
+- **Single Point of Connection**: MCP server handles all n8n communication
+- **Protocol Standardization**: Uses MCP for consistent tool communication  
+- **Simplified Configuration**: No need for direct n8n credentials in bot
+- **Better Security**: MCP server acts as secure proxy
+- **Railway Optimized**: Designed specifically for Railway deployment
 
 ## Changes Made
 
-### 1. New MCP Client (`n8n_mcp_client.py`)
+### 1. Complete MCP Migration
 
-Created a new MCP client that communicates with the external n8n MCP server instead of directly with n8n's REST API. This provides:
+**Removed Direct n8n Client**: The production module no longer uses direct n8n REST API calls. All communication flows through the MCP server:
 
-- **Better Integration**: Uses the MCP protocol for standardized tool communication
-- **Railway Compatibility**: Designed for the czlonkowski/n8n-mcp-railway container
-- **Enhanced Features**: Access to MCP-specific n8n operations
-- **Same Interface**: Compatible with existing production module components
+- **New MCP Client** (`n8n_mcp_client.py`): Communicates exclusively with MCP server
+- **Updated Components**: All production components now use MCP client only
+- **Simplified Architecture**: Single communication path to n8n via MCP
 
 ### 2. Updated Production Module
 
-Modified `production_mcp.py` to use the new MCP client:
-- Replaced direct n8n client with MCP client
-- Maintained all existing functionality
-- Added support for MCP-specific operations
+Modified `production_mcp.py` and all components:
+- Removed `N8nClient` dependencies
+- Updated all components to use `N8nMCPClient` exclusively
+- Maintained all existing functionality through MCP protocol
 
-### 3. Configuration Updates
+### 3. Simplified Configuration
 
-Added new environment variables for MCP server configuration:
-
+**Primary Configuration** (MCP Server):
 ```bash
-# N8n MCP Server Configuration (Railway-hosted)
+# N8n MCP Server Configuration (RECOMMENDED)
 N8N_MCP_SERVER_URL=https://your-n8n-mcp.railway.app
 N8N_MCP_API_KEY=your_mcp_api_key
-N8N_MCP_AUTH_TOKEN=your_mcp_auth_token
 ```
 
-### 4. Component Compatibility
+**Legacy Support** (Optional fallback):
+```bash
+# Direct n8n connection (fallback only)
+MAIN_N8N_URL=https://your-n8n.railway.app
+```
 
-Updated production components to accept both N8nClient and N8nMCPClient:
-- `WorkflowValidator`: Updated type hints for MCP client compatibility
-- `CatalogManager`: Compatible with MCP client interface
-- `WorkflowExporter`: Works with both client types
-- Other components: Use the same interface pattern
+### 4. Enhanced Security & Reliability
+
+- **No Direct Credentials**: Bot doesn't need direct n8n API access
+- **MCP Proxy**: MCP server handles all authentication with n8n
+- **Single Point of Failure**: Only MCP server needs n8n access
+- **Better Error Handling**: MCP protocol provides standardized error responses
 
 ## MCP Server Setup
 

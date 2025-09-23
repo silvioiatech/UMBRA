@@ -179,12 +179,12 @@ CREATOR_DEEPGRAM_API_KEY=...
 ### Optional: Production Module
 
 ```bash
-# n8n Workflow Integration
-MAIN_N8N_URL=https://your-n8n.railway.app
-
-# n8n MCP Server (Railway-hosted)
+# n8n MCP Server (Railway-hosted) - RECOMMENDED
 N8N_MCP_SERVER_URL=https://your-n8n-mcp.railway.app
 N8N_MCP_API_KEY=your_mcp_api_key
+
+# Legacy n8n Direct Connection (optional fallback)
+MAIN_N8N_URL=https://your-n8n.railway.app
 ```
 
 ## 🔧 Usage Examples

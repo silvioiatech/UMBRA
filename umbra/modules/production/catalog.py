@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 from typing import Any, Optional, Union
 
 from ...core.config import UmbraConfig
-from .n8n_client import N8nClient
+from .n8n_mcp_client import N8nMCPClient
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +40,7 @@ class CatalogEntry:
 class CatalogManager:
     """Manages n8n node catalog with intelligent filtering"""
 
-    def __init__(self, n8n_client: N8nClient, config: UmbraConfig):
+    def __init__(self, n8n_client: N8nMCPClient, config: UmbraConfig):
         self.n8n_client = n8n_client
         self.config = config
         self.cache = {}
