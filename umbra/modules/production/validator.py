@@ -9,10 +9,11 @@ import json
 import logging
 import re
 from dataclasses import dataclass
-from typing import Any, Optional, Union
+from typing import Any
 
 from ...core.config import UmbraConfig
 from .n8n_client import N8nClient
+from .n8n_mcp_client import N8nMCPClient
 
 logger = logging.getLogger(__name__)
 
@@ -22,8 +23,8 @@ class ValidationIssue:
     level: str  # "error", "warning", "info"
     category: str  # "schema", "logic", "security", "performance"
     message: str
-    location: Optional[str] = None
-    suggestion: Optional[str] = None
+    location: str | None = None
+    suggestion: str | None = None
 
 @dataclass
 class ValidationResult:
@@ -36,7 +37,7 @@ class ValidationResult:
 class WorkflowValidator:
     """Validates n8n workflows for correctness and quality"""
 
-    def __init__(self, n8n_client: N8nClient, config: UmbraConfig):
+    def __init__(self, n8n_client: N8nClient | N8nMCPClient, config: UmbraConfig):
         self.n8n_client = n8n_client
         self.config = config
 

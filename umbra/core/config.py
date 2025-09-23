@@ -143,6 +143,11 @@ class UmbraConfig:
         self.SSH_PRIVATE_KEY = os.getenv('SSH_PRIVATE_KEY')
         self.N8N_API_URL = os.getenv('N8N_API_URL')
         self.N8N_API_KEY = os.getenv('N8N_API_KEY')
+        
+        # N8n MCP Server Configuration (Railway-hosted)
+        self.N8N_MCP_SERVER_URL = os.getenv('N8N_MCP_SERVER_URL')
+        self.N8N_MCP_API_KEY = os.getenv('N8N_MCP_API_KEY')
+        self.N8N_MCP_AUTH_TOKEN = os.getenv('N8N_MCP_AUTH_TOKEN')
 
         # Alert Thresholds
         self.CPU_ALERT_THRESHOLD = int(os.getenv('CPU_ALERT_THRESHOLD', '85'))

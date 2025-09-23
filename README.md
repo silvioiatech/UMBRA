@@ -181,6 +181,10 @@ CREATOR_DEEPGRAM_API_KEY=...
 ```bash
 # n8n Workflow Integration
 MAIN_N8N_URL=https://your-n8n.railway.app
+
+# n8n MCP Server (Railway-hosted)
+N8N_MCP_SERVER_URL=https://your-n8n-mcp.railway.app
+N8N_MCP_API_KEY=your_mcp_api_key
 ```
 
 ## 🔧 Usage Examples
@@ -357,6 +361,7 @@ class MyModule(BaseModule):
 - [F4R2 Storage](./docs/F4R2_README.md)
 - [Swiss Accountant](./umbra/modules/swiss_accountant/README.md)
 - [Creator Module](./docs/CREATOR_README.md)
+- [Production Module & N8n MCP Integration](./docs/N8N_MCP_INTEGRATION.md)
 - [Security Documentation](./docs/PR_SEC1_COMPLETION_REPORT.md)
 
 ### Directory Structure

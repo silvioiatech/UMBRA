@@ -7,7 +7,7 @@ with multi-LLM routing, sticky notes, and comprehensive workflow management.
 
 import logging
 from dataclasses import asdict, dataclass
-from typing import Any, Optional, Union
+from typing import Any
 
 from ..ai.agent import UmbraAIAgent
 from ..core.config import UmbraConfig
@@ -18,7 +18,7 @@ from .production.controller import ProductionController
 from .production.costs import CostManager
 from .production.exporter import WorkflowExporter
 from .production.importer import WorkflowImporter
-from .production.n8n_client import N8nClient
+from .production.n8n_mcp_client import N8nMCPClient
 from .production.planner import WorkflowPlanner
 from .production.redact import ProductionRedactor
 from .production.selector import NodeSelector
@@ -62,13 +62,13 @@ class ProductionCapabilities:
 class ProductionModule:
     """Production MCP Module for n8n workflow management"""
 
-    def __init__(self, ai_agent: UmbraAIAgent, config: UmbraConfig, r2_client: Optional[R2Client] = None):
+    def __init__(self, ai_agent: UmbraAIAgent, config: UmbraConfig, r2_client: R2Client | None = None):
         self.ai_agent = ai_agent
         self.config = config
         self.r2_client = r2_client
 
-        # Initialize components
-        self.n8n_client = N8nClient(config)
+        # Initialize components with MCP client
+        self.n8n_client = N8nMCPClient(config)
         self.planner = WorkflowPlanner(ai_agent, config)
         self.catalog = CatalogManager(self.n8n_client, config)
         self.selector = NodeSelector(ai_agent, config)
