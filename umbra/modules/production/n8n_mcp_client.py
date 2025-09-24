@@ -43,15 +43,27 @@ class N8nMCPClient:
 
         logger.info(f"N8n MCP client initialized for {self.server_url}")
 
+    def _config_get(self, key: str, default: Any | None = None) -> Any:
+        """Retrieve configuration values from UmbraConfig or mapping-like objects."""
+        getter = getattr(self.config, "get", None)
+        if callable(getter):
+            try:
+                return getter(key, default)
+            except TypeError:
+                # Some mocks may not support the default argument
+                return getter(key)
+
+        return getattr(self.config, key, default)
+
     def _resolve_mcp_server_url(self) -> str:
         """Resolve n8n MCP server URL"""
         # Use the Railway-hosted MCP server URL
-        url = self.config.get("N8N_MCP_SERVER_URL")
+        url = self._config_get("N8N_MCP_SERVER_URL")
         if url:
             return url.rstrip("/")
 
         # Check for main n8n URL as fallback
-        main_url = self.config.get("MAIN_N8N_URL")
+        main_url = self._config_get("MAIN_N8N_URL")
         if main_url:
             # If it's a direct n8n instance, assume MCP is on the same domain
             return main_url.rstrip("/")
@@ -62,11 +74,11 @@ class N8nMCPClient:
 
     def _load_credentials(self) -> N8nMCPCredentials:
         """Load n8n MCP server authentication credentials"""
-        api_key = self.config.get("N8N_MCP_API_KEY")
-        auth_token = self.config.get("N8N_MCP_AUTH_TOKEN")
+        api_key = self._config_get("N8N_MCP_API_KEY")
+        auth_token = self._config_get("N8N_MCP_AUTH_TOKEN")
         
         # Also try standard n8n credentials as fallback
-        n8n_api_key = self.config.get("N8N_API_KEY")
+        n8n_api_key = self._config_get("N8N_API_KEY")
 
         if api_key:
             return N8nMCPCredentials(api_key=api_key, auth_type="api_key")
